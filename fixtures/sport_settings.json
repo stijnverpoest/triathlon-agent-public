@@ -1,0 +1,46 @@
+[
+  {
+    "id": 1,
+    "types": [
+      "Ride"
+    ],
+    "ftp": 260,
+    "power_zones": [
+      0.55,
+      0.75,
+      0.9,
+      1.05,
+      1.2,
+      1.5
+    ]
+  },
+  {
+    "id": 2,
+    "types": [
+      "Run"
+    ],
+    "threshold_pace": 285,
+    "pace_units": "min/km",
+    "pace_zones": [
+      1.18,
+      1.08,
+      1.0,
+      0.95,
+      0.9
+    ],
+    "lthr": 172,
+    "hr_zones": [
+      0.68,
+      0.78,
+      0.88,
+      0.94,
+      1.0
+    ]
+  },
+  {
+    "id": 3,
+    "types": [
+      "WeightTraining"
+    ]
+  }
+]

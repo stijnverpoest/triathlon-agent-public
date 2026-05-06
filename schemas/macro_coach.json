@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "MacroCoachOutput",
+  "type": "object",
+  "required": [
+    "agent",
+    "macro_phase",
+    "week_classification",
+    "load_direction",
+    "progression_type",
+    "friel_block_week",
+    "friel_cycle_type",
+    "phase_focus",
+    "preserve",
+    "avoid",
+    "rationale"
+  ],
+  "properties": {
+    "agent": {"const": "macro_coach"}
+  }
+}

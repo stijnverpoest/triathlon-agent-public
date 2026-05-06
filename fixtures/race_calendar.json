@@ -1,0 +1,18 @@
+{
+  "races": [
+    {
+      "name": "Leuven 10k",
+      "date": "2026-04-19",
+      "priority": "B",
+      "distance": "10k",
+      "notes": "Useful tune-up for run rhythm and pacing discipline."
+    },
+    {
+      "name": "Brussels Olympic Triathlon",
+      "date": "2026-06-07",
+      "priority": "A",
+      "distance": "Olympic",
+      "notes": "Flat bike, fast run, likely moderate temperatures."
+    }
+  ]
+}

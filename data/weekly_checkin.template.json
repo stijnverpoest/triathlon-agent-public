@@ -1,0 +1,16 @@
+{
+  "planning_date": "2026-03-08",
+  "last_week_summary": "Summarize the week in 2-3 sentences.",
+  "missed_sessions": [],
+  "unexpected_fatigue": "",
+  "open_water_mode": false,
+  "time_constraints": [],
+  "travel_this_week": false,
+  "current_motivation": 7,
+  "subjective_readiness": 7,
+  "pain_or_niggles": "",
+  "athlete_notes": "",
+  "available_hours_override_min": null,
+  "double_session_capacity_by_day": {},
+  "time_caps_by_day": {}
+}

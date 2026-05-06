@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PerformanceDoctorOutput",
+  "type": "object",
+  "required": [
+    "agent",
+    "readiness_status",
+    "readiness_score",
+    "objective_findings",
+    "subjective_findings",
+    "main_risk",
+    "constraints",
+    "load_recommendation",
+    "baseline_sources",
+    "missing_data"
+  ],
+  "properties": {
+    "agent": {"const": "performance_doctor"}
+  }
+}

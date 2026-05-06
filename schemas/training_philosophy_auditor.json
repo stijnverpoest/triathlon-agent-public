@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "TrainingPhilosophyAuditorOutput",
+  "type": "object",
+  "required": [
+    "agent",
+    "overall_status",
+    "daniels_alignment",
+    "coggan_alignment",
+    "friel_alignment",
+    "findings",
+    "required_edits"
+  ],
+  "properties": {
+    "agent": {"const": "training_philosophy_auditor"}
+  }
+}

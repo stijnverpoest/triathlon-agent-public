@@ -1,0 +1,56 @@
+{
+  "name": "Athlete Name",
+  "age": 35,
+  "sex": "F",
+  "training_age_years": 3,
+  "primary_sport_background": "Running",
+  "current_level": "Intermediate age-group triathlete",
+  "target_race_distance": "Olympic",
+  "primary_performance_goal": "Race stronger off the bike",
+  "secondary_goal": "Stay durable through the next build block",
+  "typical_training_hours_per_week": 10,
+  "preferred_long_ride_day": "Saturday",
+  "preferred_long_run_day": "Sunday",
+  "non_negotiable_days_off": [
+    "Monday"
+  ],
+  "strength_days": [
+    "Friday"
+  ],
+  "injury_history": [
+    "Achilles tightness during rapid run-volume jumps"
+  ],
+  "known_constraints": [
+    "Wednesday morning only",
+    "No doubles on work-travel days"
+  ],
+  "hard_constraints": {
+    "always": [
+      "List true hard constraints here."
+    ],
+    "when_open_water_mode_false": [
+      "List pool-season-only hard constraints here."
+    ]
+  },
+  "soft_preferences": {
+    "weekday_rhythm": [
+      "List preferred but movable weekday patterns here."
+    ],
+    "weekend_structure": [
+      "List preferred weekend structure here."
+    ]
+  },
+  "phase_preferences": {
+    "early_phase_bias": [
+      "Describe any early-phase focus, such as strength or durability."
+    ]
+  },
+  "decision_policy": {
+    "sequencing_priority": "best physiological sequencing",
+    "routine_override_rule": "Preserve routine when the difference is small; otherwise surface the change clearly for approval."
+  },
+  "typical_sleep_hours": 7.5,
+  "hrv_baseline": null,
+  "resting_hr_baseline": null,
+  "coaching_tone_preference": "Direct and practical"
+}

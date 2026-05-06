@@ -1,0 +1,146 @@
+[
+  {
+    "id": "a001",
+    "start_date_local": "2026-02-10T18:00:00",
+    "type": "Ride",
+    "name": "Sweet spot bike",
+    "moving_time": 4500,
+    "icu_training_load": 68,
+    "average_heartrate": 142
+  },
+  {
+    "id": "a002",
+    "start_date_local": "2026-02-12T06:30:00",
+    "type": "Run",
+    "name": "Aerobic run",
+    "moving_time": 3000,
+    "icu_training_load": 39,
+    "average_heartrate": 144
+  },
+  {
+    "id": "a003",
+    "start_date_local": "2026-02-14T08:00:00",
+    "type": "Ride",
+    "name": "Long ride",
+    "moving_time": 9000,
+    "icu_training_load": 112,
+    "average_heartrate": 138
+  },
+  {
+    "id": "a004",
+    "start_date_local": "2026-02-15T09:00:00",
+    "type": "Run",
+    "name": "Long run",
+    "moving_time": 4200,
+    "icu_training_load": 53,
+    "average_heartrate": 149
+  },
+  {
+    "id": "a005",
+    "start_date_local": "2026-02-17T18:00:00",
+    "type": "Ride",
+    "name": "Threshold bike",
+    "moving_time": 4800,
+    "icu_training_load": 74,
+    "average_heartrate": 148
+  },
+  {
+    "id": "a006",
+    "start_date_local": "2026-02-19T06:35:00",
+    "type": "Run",
+    "name": "Threshold run",
+    "moving_time": 3600,
+    "icu_training_load": 58,
+    "average_heartrate": 161
+  },
+  {
+    "id": "a007",
+    "start_date_local": "2026-02-21T08:00:00",
+    "type": "Ride",
+    "name": "Long ride with tempo",
+    "moving_time": 9300,
+    "icu_training_load": 118,
+    "average_heartrate": 140
+  },
+  {
+    "id": "a008",
+    "start_date_local": "2026-02-22T09:00:00",
+    "type": "Run",
+    "name": "Aerobic long run",
+    "moving_time": 4500,
+    "icu_training_load": 60,
+    "average_heartrate": 148
+  },
+  {
+    "id": "a009",
+    "start_date_local": "2026-02-24T18:00:00",
+    "type": "Ride",
+    "name": "Bike threshold build",
+    "moving_time": 4800,
+    "icu_training_load": 76,
+    "average_heartrate": 149
+  },
+  {
+    "id": "a010",
+    "start_date_local": "2026-02-25T06:30:00",
+    "type": "Run",
+    "name": "Easy run",
+    "moving_time": 2700,
+    "icu_training_load": 33,
+    "average_heartrate": 141
+  },
+  {
+    "id": "a011",
+    "start_date_local": "2026-02-27T06:35:00",
+    "type": "Run",
+    "name": "Progression run",
+    "moving_time": 3900,
+    "icu_training_load": 61,
+    "average_heartrate": 159
+  },
+  {
+    "id": "a012",
+    "start_date_local": "2026-02-28T08:00:00",
+    "type": "Ride",
+    "name": "Long ride steady",
+    "moving_time": 9600,
+    "icu_training_load": 116,
+    "average_heartrate": 139
+  },
+  {
+    "id": "a013",
+    "start_date_local": "2026-03-02T18:00:00",
+    "type": "Ride",
+    "name": "Bike threshold repeat",
+    "moving_time": 4500,
+    "icu_training_load": 70,
+    "average_heartrate": 147
+  },
+  {
+    "id": "a014",
+    "start_date_local": "2026-03-04T06:30:00",
+    "type": "Run",
+    "name": "Easy run",
+    "moving_time": 2700,
+    "icu_training_load": 32,
+    "average_heartrate": 143
+  },
+  {
+    "id": "a015",
+    "start_date_local": "2026-03-05T06:35:00",
+    "type": "Run",
+    "name": "Threshold run",
+    "moving_time": 3900,
+    "icu_training_load": 59,
+    "average_heartrate": 163
+  },
+  {
+    "id": "a016",
+    "start_date_local": "2026-03-07T08:00:00",
+    "type": "Ride",
+    "name": "Long ride with race blocks",
+    "moving_time": 9300,
+    "icu_training_load": 112,
+    "average_heartrate": 141
+  }
+]

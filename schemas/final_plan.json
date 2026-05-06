@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "FinalWeeklyPlan",
+  "type": "object",
+  "required": [
+    "executive_summary",
+    "athlete_brief",
+    "coach_note",
+    "what_last_week_tells_us",
+    "strategic_overview",
+    "macro_cycle_decision",
+    "phase_alignment_check",
+    "training_philosophy_check",
+    "readiness_status",
+    "readiness_score",
+    "risk_status",
+    "sessions",
+    "weekly_time_budget",
+    "weekly_focus_notes",
+    "changes_vs_prior_week",
+    "validator_adjustments_incorporated",
+    "nutrition_summary",
+    "write_back_preview",
+    "approval_checkpoint"
+  ],
+  "properties": {
+    "athlete_brief": {
+      "type": "object",
+      "required": ["week_theme", "why_this_week", "protect_if_busy", "watch_for", "fallback_plan", "tone"]
+    },
+    "coach_note": {"type": "string"},
+    "weekly_time_budget": {
+      "type": "object",
+      "required": ["target_min", "minimum_effective_min", "maximum_effective_min", "mode", "rationale"]
+    },
+    "weekly_focus_notes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["date", "day", "title", "body", "push_to_intervals"]
+      }
+    },
+    "sessions": {
+      "type": "array",
+      "items": {"$ref": "session.json"}
+    }
+  }
+}

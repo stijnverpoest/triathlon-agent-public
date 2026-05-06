@@ -1,0 +1,29 @@
+{
+  "planning_date": "2026-03-08",
+  "last_week_summary": "Completed five of six planned sessions. The long ride was strong, but the Thursday quality run felt stale and the calf tightened slightly afterward.",
+  "missed_sessions": [
+    "Friday recovery spin"
+  ],
+  "unexpected_fatigue": "Work stress increased on Thursday and Friday, with mild calf tightness after the quality run.",
+  "open_water_mode": false,
+  "time_constraints": [
+    "Wednesday maximum 45 minutes",
+    "Friday gym only 30 minutes"
+  ],
+  "travel_this_week": false,
+  "current_motivation": 8,
+  "subjective_readiness": 6,
+  "pain_or_niggles": "Mild left calf tightness, monitor but no sharp pain.",
+  "athlete_notes": "Keep Sunday as the long run day if possible. I would rather hold load than force more intensity this week.",
+  "available_hours_override_min": 630,
+  "double_session_capacity_by_day": {
+    "Tuesday": true,
+    "Wednesday": false,
+    "Thursday": true,
+    "Friday": true
+  },
+  "time_caps_by_day": {
+    "Wednesday": 45,
+    "Friday": 30
+  }
+}

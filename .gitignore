@@ -1,0 +1,11 @@
+.env
+.env.*
+!.env.example
+__pycache__/
+*.pyc
+data/*.json
+!data/*.template.json
+runs/*
+!runs/.gitkeep
+sample_output/
+triathlon_agents_prompts.zip

@@ -1,0 +1,57 @@
+{
+  "name": "Alex Vermeer",
+  "age": 36,
+  "sex": "M",
+  "training_age_years": 4,
+  "primary_sport_background": "Cycling",
+  "current_level": "Competitive age-group triathlete",
+  "target_race_distance": "Olympic",
+  "primary_performance_goal": "Hold bike power deeper into the run",
+  "secondary_goal": "Build durable run frequency without calf flare-ups",
+  "typical_training_hours_per_week": 11,
+  "preferred_long_ride_day": "Saturday",
+  "preferred_long_run_day": "Sunday",
+  "non_negotiable_days_off": [
+    "Monday"
+  ],
+  "strength_days": [
+    "Friday"
+  ],
+  "injury_history": [
+    "Left calf tightness when run intensity stacks too closely"
+  ],
+  "known_constraints": [
+    "Wednesday capped at 45 minutes",
+    "Friday gym only"
+  ],
+  "hard_constraints": {
+    "always": [
+      "Monday is usually off unless the week clearly benefits from moving stress.",
+      "Thursday pool access matters."
+    ],
+    "when_open_water_mode_false": [
+      "Tuesday club swim is fixed while pool season is active."
+    ]
+  },
+  "soft_preferences": {
+    "weekday_rhythm": [
+      "Tuesday run plus club swim is the normal rhythm."
+    ],
+    "weekend_structure": [
+      "Prefer Saturday long ride and Sunday long run when the difference is small."
+    ]
+  },
+  "phase_preferences": {
+    "early_phase_bias": [
+      "Keep some strength emphasis early in the block."
+    ]
+  },
+  "decision_policy": {
+    "sequencing_priority": "best physiological sequencing",
+    "routine_override_rule": "Preserve routine when the difference is small; otherwise explain the deviation."
+  },
+  "typical_sleep_hours": 7.4,
+  "hrv_baseline": 64,
+  "resting_hr_baseline": 46,
+  "coaching_tone_preference": "Direct and practical"
+}

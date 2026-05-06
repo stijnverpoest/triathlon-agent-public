@@ -1,0 +1,44 @@
+[
+  {
+    "id": 9001,
+    "start_date_local": "2026-03-02T00:00:00",
+    "category": "WORKOUT",
+    "type": "Ride",
+    "name": "Bike threshold repeat",
+    "moving_time": 4500,
+    "external_id": "prev-bike-1"
+  },
+  {
+    "id": 9002,
+    "start_date_local": "2026-03-05T00:00:00",
+    "category": "WORKOUT",
+    "type": "Run",
+    "name": "Threshold run",
+    "moving_time": 3900,
+    "external_id": "prev-run-1"
+  },
+  {
+    "id": 9101,
+    "start_date_local": "2026-04-19T00:00:00",
+    "category": "RACE_B",
+    "type": "10k",
+    "name": "Leuven 10k",
+    "description": "Tune-up running race for rhythm and pacing discipline.",
+    "tags": [
+      "run",
+      "tune-up"
+    ]
+  },
+  {
+    "id": 9102,
+    "start_date_local": "2026-06-07T00:00:00",
+    "category": "RACE_A",
+    "type": "Olympic",
+    "name": "Brussels Olympic Triathlon",
+    "description": "Flat bike, fast run, likely moderate temperatures.",
+    "tags": [
+      "triathlon",
+      "a-race"
+    ]
+  }
+]

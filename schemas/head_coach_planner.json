@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "HeadCoachPlannerOutput",
+  "type": "object",
+  "required": [
+    "agent",
+    "strategic_theme",
+    "key_sessions",
+    "adaptations_targeted",
+    "sessions"
+  ],
+  "properties": {
+    "agent": {"const": "head_coach_planner"},
+    "weekly_time_budget": {"type": "object"},
+    "sessions": {
+      "type": "array",
+      "items": {"$ref": "session.json"}
+    }
+  }
+}

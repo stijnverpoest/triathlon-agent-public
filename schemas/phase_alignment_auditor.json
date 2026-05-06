@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PhaseAlignmentAuditorOutput",
+  "type": "object",
+  "required": [
+    "agent",
+    "current_phase",
+    "priority_race",
+    "alignment_status",
+    "week_fit_summary",
+    "supporting_signals",
+    "required_adjustments",
+    "forbidden_elements"
+  ],
+  "properties": {
+    "agent": {"const": "phase_alignment_auditor"}
+  }
+}

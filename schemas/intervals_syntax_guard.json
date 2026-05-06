@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "IntervalsSyntaxGuardOutput",
+  "type": "object",
+  "required": [
+    "status",
+    "intent_fidelity",
+    "final_description",
+    "rewrite_reason",
+    "push_ready"
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "NutritionistOutput",
+  "type": "object",
+  "required": [
+    "agent",
+    "week_strategy",
+    "daily_priorities",
+    "session_fueling",
+    "daily_targets",
+    "hydration_targets",
+    "energy_availability_risk",
+    "daily_notes",
+    "hydration_guidance",
+    "recovery_priorities",
+    "major_concerns"
+  ],
+  "properties": {
+    "agent": {"const": "nutritionist"}
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "WeeklyPlanSession",
+  "type": "object",
+  "required": [
+    "day",
+    "date",
+    "discipline",
+    "session_name",
+    "objective",
+    "duration_min",
+    "intensity_guidance",
+    "primary_metric",
+    "blocks",
+    "execution_notes",
+    "success_criteria",
+    "cut_first"
+  ],
+  "properties": {
+    "day": {"type": "string"},
+    "date": {"type": "string"},
+    "discipline": {"type": "string"},
+    "session_name": {"type": "string"},
+    "objective": {"type": "string"},
+    "duration_min": {"type": ["integer", "number"]},
+    "intensity_guidance": {"type": "string"},
+    "primary_metric": {"type": "string"},
+    "training_method": {"type": "string"},
+    "daniels_type": {"type": "string"},
+    "coggan_level": {"type": "string"},
+    "expected_if": {"type": ["number", "null"]},
+    "estimated_tss": {"type": ["integer", "number", "null"]},
+    "blocks": {"type": "array"},
+    "execution_notes": {"type": "array"},
+    "success_criteria": {"type": "string"},
+    "cut_first": {"type": "string"}
+  }
+}

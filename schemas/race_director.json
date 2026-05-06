@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RaceDirectorOutput",
+  "type": "object",
+  "required": [
+    "agent",
+    "priority_race_lens",
+    "race_specific_needs",
+    "mistake_to_avoid",
+    "specificity_locations"
+  ],
+  "properties": {
+    "agent": {"const": "race_director"}
+  }
+}
