@@ -480,6 +480,10 @@
       gap: 12px;
     }
 
+    .timeline-two {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
     .timeline-step {
       display: grid;
       grid-template-columns: 52px 1fr;
@@ -585,7 +589,8 @@
 
     @media (max-width: 760px) {
       .three-col,
-      .stack-grid {
+      .stack-grid,
+      .timeline-two {
         grid-template-columns: 1fr;
       }
 
@@ -817,15 +822,15 @@
           </div>
         </header>
         <div class="slide-body commands-grid">
-          <div class="timeline">
+          <div class="timeline timeline-two">
             <div class="timeline-step"><div class="step-index">1</div><div><div class="step-title">User request</div><div class="step-copy">The user says <code>plan my week</code>. The CLI rewrites the phrase to <code>prepare-run</code> rather than drafting immediately.</div></div></div>
             <div class="timeline-step"><div class="step-index">2</div><div><div class="step-title">Prepare run</div><div class="step-copy">Fetch Intervals profile, sport settings, wellness, activities, and calendar events. Load local athlete profile and weekly check-in.</div></div></div>
-            <div class="timeline-step"><div class="step-index">3</div><div><div class="step-title">Normalize snapshot</div><div class="step-copy">Write <code>normalized_snapshot.json</code> and <code>run_context.json</code> so the main agent can reason over one coherent view.</div></div></div>
-            <div class="timeline-step"><div class="step-index">4</div><div><div class="step-title">Targeted follow-up</div><div class="step-copy">Summarize what happened last week, then ask only for subjective feedback and next-week constraints the API cannot know.</div></div></div>
+            <div class="timeline-step"><div class="step-index">3</div><div><div class="step-title">Normalize snapshot</div><div class="step-copy">Write <code>normalized_snapshot.json</code> with deterministic load, progression and threshold-test signals, plus <code>run_context.json</code>, so the main agent reasons over one coherent view.</div></div></div>
+            <div class="timeline-step"><div class="step-index">4</div><div><div class="step-title">Targeted check-in</div><div class="step-copy">Summarize last week, ask only what the API cannot know (pain, sleep, stress, availability, red flags), and store the answers with <code>record-checkin</code>, which re-normalizes the snapshot.</div></div></div>
             <div class="timeline-step"><div class="step-index">5</div><div><div class="step-title">Specialist chain</div><div class="step-copy">Run agents in order, writing one JSON artifact per role into <code>agent_outputs/</code>.</div></div></div>
-            <div class="timeline-step"><div class="step-index">6</div><div><div class="step-title">Finalize</div><div class="step-copy">Validate contracts, aggregate outputs, render <code>weekly_report.md</code>, and keep approval status pending.</div></div></div>
-            <div class="timeline-step"><div class="step-index">7</div><div><div class="step-title">Approval gate</div><div class="step-copy">A human reviews the report. No compilation and no push happen before approval.</div></div></div>
-            <div class="timeline-step"><div class="step-index">8</div><div><div class="step-title">Compile and push</div><div class="step-copy">Compile workouts and note events, run the syntax guard, bulk upsert to Intervals, and record <code>push_result.json</code>.</div></div></div>
+            <div class="timeline-step"><div class="step-index">6</div><div><div class="step-title">Finalize</div><div class="step-copy">Validate contracts, run the deterministic coaching audit, render <code>weekly_report.md</code>, and keep approval status pending.</div></div></div>
+            <div class="timeline-step"><div class="step-index">7</div><div><div class="step-title">Approval gate</div><div class="step-copy">A human reviews the report. Approval is bound to the exact <code>final_plan.json</code>; nothing is compiled or pushed before it.</div></div></div>
+            <div class="timeline-step"><div class="step-index">8</div><div><div class="step-title">Compile and push</div><div class="step-copy">Compile workouts and notes, run the syntax guard, skip events edited in Intervals, bulk upsert, apply approved threshold updates, and update the athlete's long-term state.</div></div></div>
           </div>
           <div class="code-panel">
             <span class="code-label">Production command sequence</span>
@@ -834,18 +839,22 @@
   --athlete-profile data/athlete_profile.json \
   --weekly-checkin data/weekly_checkin.json
 
+python3 -m triathlon_agent.cli record-checkin runs/&lt;run_id&gt; answers.json
+
 python3 -m triathlon_agent.cli finalize-run runs/&lt;run_id&gt;
 
 python3 -m triathlon_agent.cli approve runs/&lt;run_id&gt; --mode live</pre>
             <p class="caption">
               The deterministic stub flow still exists for tests and offline demos, but live planning is
-              intentionally staged through <code>prepare-run</code> and <code>finalize-run</code>.
+              intentionally staged through <code>prepare-run</code>, <code>record-checkin</code> and
+              <code>finalize-run</code>. When the week goes off the rails, <code>adjust-week</code>
+              re-plans only the remaining days in a new linked run.
             </p>
           </div>
         </div>
         <footer class="slide-footer">
           <span>Mandatory order is documented in prompts/weekly_workflow.md</span>
-          <span class="footer-right">prepare-run -> finalize-run -> approve</span>
+          <span class="footer-right">prepare-run -> record-checkin -> finalize-run -> approve</span>
         </footer>
       </div>
     </section>
@@ -865,26 +874,26 @@ python3 -m triathlon_agent.cli approve runs/&lt;run_id&gt; --mode live</pre>
           <article class="card">
             <span class="card-label">1</span>
             <h3 class="card-title">performance_doctor</h3>
-            <p class="card-copy">Reads readiness, fatigue, recovery, and injury risk from live history plus subjective check-in. Sets the caution level for the week.</p>
+            <p class="card-copy">Reads readiness from the deterministic load signals (CTL ramp, TSB, HRV gate, overreaching, return from a break), the check-in and red flags. Sets the caution level and quality allowance for the week.</p>
             <div class="card-tag-row"><span class="card-tag">readiness</span><span class="card-tag">fatigue</span><span class="card-tag">risk</span></div>
           </article>
           <article class="card">
             <span class="card-label">2</span>
             <h3 class="card-title">macro_coach</h3>
-            <p class="card-copy">Applies Friel-style periodization to classify the week, determine phase, and decide whether the athlete should load, absorb, recover, or taper.</p>
+            <p class="card-copy">Applies Friel-style periodization: phase, 3:1 block week, and whether to load, absorb, recover, taper or re-enter. Holiday weeks are maintenance, not recovery.</p>
             <div class="card-tag-row"><span class="card-tag">phase</span><span class="card-tag">block week</span><span class="card-tag">periodization</span></div>
           </article>
           <article class="card">
             <span class="card-label">3</span>
             <h3 class="card-title">race_director</h3>
-            <p class="card-copy">Chooses the priority race lens from Intervals calendar data and translates it into race-specific needs for this week.</p>
+            <p class="card-copy">Takes A/B/C races only from the Intervals calendar and turns the priority race into this week's specific needs, tapers, B-race mini-tapers and post-race transitions.</p>
             <div class="card-tag-row"><span class="card-tag">race priority</span><span class="card-tag">specificity</span><span class="card-tag">calendar-aware</span></div>
           </article>
           <article class="card">
             <span class="card-label">4</span>
             <h3 class="card-title">head_coach_planner</h3>
-            <p class="card-copy">Builds the seven-day schedule. Places workouts, recovery, session durations, and discipline-specific targeting while respecting constraints.</p>
-            <div class="card-tag-row"><span class="card-tag">Daniels</span><span class="card-tag">Coggan</span><span class="card-tag">weekly layout</span></div>
+            <p class="card-copy">Designs every session for the seven-day week: progression ladders within a progression budget, run-load caps, scheduled threshold tests, and the athlete's hours and constraints.</p>
+            <div class="card-tag-row"><span class="card-tag">Daniels</span><span class="card-tag">Coggan</span><span class="card-tag">progression</span></div>
           </article>
         </div>
         <footer class="slide-footer">
@@ -945,6 +954,67 @@ python3 -m triathlon_agent.cli approve runs/&lt;run_id&gt; --mode live</pre>
       </div>
     </section>
 
+    <section class="slide" data-title="Guardrails">
+      <div class="slide-shell">
+        <header class="slide-header">
+          <div>
+            <span class="eyebrow">Coaching Guardrails</span>
+            <h2 class="slide-title">Deterministic signals before the plan, a deterministic audit after it.</h2>
+            <p class="slide-subtitle">
+              The LLM designs the week, but Python measures load, tracks progression and thresholds,
+              and checks the finished plan against the doctrine with shared, explicit limits.
+            </p>
+          </div>
+        </header>
+        <div class="slide-body stack-grid">
+          <article class="card">
+            <span class="card-label">before</span>
+            <h3 class="card-title">training_load.py</h3>
+            <p class="card-copy">CTL ramp and TSB, 28-day intensity distribution, HRV gate, underload and overreaching, return-from-break ramp, daily early warnings, and run caps for km, time and descent.</p>
+          </article>
+          <article class="card">
+            <span class="card-label">before</span>
+            <h3 class="card-title">progression.py</h3>
+            <p class="card-copy">Finds the last completed dose per time-in-zone ladder and proposes the next rung, so progression follows what was actually done.</p>
+          </article>
+          <article class="card">
+            <span class="card-label">before</span>
+            <h3 class="card-title">threshold_testing.py</h3>
+            <p class="card-copy">Schedules FTP, threshold-pace and LTHR tests when a discipline is due, reads the result laps, and proposes guarded sport-setting updates.</p>
+          </article>
+          <article class="card">
+            <span class="card-label">after</span>
+            <h3 class="card-title">plan_audit.py</h3>
+            <p class="card-copy">Run by <code>finalize-run</code>: flags under-dosed weeks, too much quality, missing progression, run-cap breaches and taper mistakes. It warns but never blocks approval.</p>
+          </article>
+          <article class="card">
+            <span class="card-label">shared</span>
+            <h3 class="card-title">coaching_limits.py</h3>
+            <p class="card-copy">One home for every threshold, used by the audit, the validator and the stub head coach.</p>
+          </article>
+          <article class="card">
+            <span class="card-label">memory</span>
+            <h3 class="card-title">athlete_state.py</h3>
+            <p class="card-copy">Long-term memory updated after each push: block counter, weekly actuals, race results, injury log, open decisions and threshold-test history.</p>
+          </article>
+          <article class="card">
+            <span class="card-label">races</span>
+            <h3 class="card-title">race_selection.py</h3>
+            <p class="card-copy">Picks the priority race from Intervals RACE events and sizes tapers and transitions by race type, from 5k to ultra trail.</p>
+          </article>
+          <article class="card">
+            <span class="card-label">safety</span>
+            <h3 class="card-title">Red flags</h3>
+            <p class="card-copy">Chest pain, palpitations, fever and similar answers or activity notes turn the week into rest with a see-a-doctor message.</p>
+          </article>
+        </div>
+        <footer class="slide-footer">
+          <span>Thresholds are explicit and shared, not buried in prompts</span>
+          <span class="footer-right">training_load + progression + plan_audit</span>
+        </footer>
+      </div>
+    </section>
+
     <section class="slide" data-title="Contracts">
       <div class="slide-shell">
         <header class="slide-header">
@@ -964,6 +1034,7 @@ python3 -m triathlon_agent.cli approve runs/&lt;run_id&gt; --mode live</pre>
   inputs.json
   normalized_snapshot.json
   run_context.json
+  weekly_checkin.json
   planning_state.json
   approval.json
   draft_plan.json
@@ -971,18 +1042,15 @@ python3 -m triathlon_agent.cli approve runs/&lt;run_id&gt; --mode live</pre>
   weekly_report.md
   athlete_brief.md
   agent_outputs/
-    performance_doctor.json
-    macro_coach.json
-    race_director.json
-    head_coach_planner.json
-    phase_alignment_auditor.json
-    training_philosophy_auditor.json
-    validator_coach.json
-    nutritionist.json
+    performance_doctor.json ... nutritionist.json
+    orchestrator.json
   compiled_workouts.json
   compiled_notes.json
   compiled_push_payload.json
-  push_result.json</div>
+  push_result.json
+  edited_events.json
+  orphan_events.json
+  threshold_update_result.json</div>
           </div>
           <div class="panel">
             <span class="panel-label">Why this matters</span>
@@ -990,6 +1058,8 @@ python3 -m triathlon_agent.cli approve runs/&lt;run_id&gt; --mode live</pre>
               <li><code>prompts/*.md</code> hold the reasoning instructions for each role.</li>
               <li><code>schemas/*.json</code> define the required shape for each specialist output.</li>
               <li><code>contracts.py</code> re-validates those contracts locally before the report is treated as final.</li>
+              <li>The coaching audit is written into <code>final_plan.json</code> and at the top of the report.</li>
+              <li>An <code>adjust-week</code> run adds <code>adjustment_context.json</code> and links back to the original run.</li>
               <li>The artifact trail makes debugging and public explanation much easier.</li>
             </ul>
             <div class="legend">
@@ -1019,13 +1089,14 @@ python3 -m triathlon_agent.cli approve runs/&lt;run_id&gt; --mode live</pre>
           </div>
         </header>
         <div class="slide-body stack-grid">
-          <article class="card"><h3 class="card-title">cli.py</h3><p class="card-copy">Exposes <code>prepare-run</code>, <code>finalize-run</code>, <code>approve</code>, and mock-only <code>plan-week</code>. Also rewrites <code>plan my week</code> to <code>prepare-run</code>.</p></article>
-          <article class="card"><h3 class="card-title">workflow.py</h3><p class="card-copy">Owns run-folder lifecycle, state transitions, artifact writes, validation hooks, and final push orchestration.</p></article>
-          <article class="card"><h3 class="card-title">normalizer.py</h3><p class="card-copy">Merges local inputs, Intervals data, race data, adherence history, wellness, and constraints into one planning snapshot.</p></article>
+          <article class="card"><h3 class="card-title">cli.py</h3><p class="card-copy">Exposes <code>prepare-run</code>, <code>record-checkin</code>, <code>finalize-run</code>, <code>approve</code>, <code>adjust-week</code>, and stub-only <code>plan-week</code>. Rewrites <code>plan my week</code> to <code>prepare-run</code>.</p></article>
+          <article class="card"><h3 class="card-title">workflow.py</h3><p class="card-copy">Owns run-folder lifecycle, check-in recording, approval binding, edited-event protection, push orchestration, and mid-week adjustments.</p></article>
+          <article class="card"><h3 class="card-title">normalizer.py</h3><p class="card-copy">Merges local inputs, Intervals data, races, adherence history, wellness, activity-note flags and the coaching signals into one planning snapshot.</p></article>
           <article class="card"><h3 class="card-title">intervals.py</h3><p class="card-copy">Provides live and mock adapters. Live mode uses stdlib <code>urllib</code>; mock mode returns fixture-backed responses.</p></article>
           <article class="card"><h3 class="card-title">compiler.py</h3><p class="card-copy">Converts the approved plan into Intervals-compatible workout events and note events, preserving conservative syntax.</p></article>
           <article class="card"><h3 class="card-title">report.py</h3><p class="card-copy">Renders <code>weekly_report.md</code> and <code>athlete_brief.md</code> for human review before push.</p></article>
           <article class="card"><h3 class="card-title">contracts.py</h3><p class="card-copy">Validates specialist outputs and final plan structure, including doctrine-specific fields like Daniels type or Coggan IF and TSS.</p></article>
+          <article class="card"><h3 class="card-title">Coaching modules</h3><p class="card-copy"><code>training_load</code>, <code>progression</code>, <code>threshold_testing</code>, <code>plan_audit</code>, <code>athlete_state</code> and <code>checkin</code>: see the Guardrails slide.</p></article>
         </div>
         <footer class="slide-footer">
           <span>Execution rails instead of hidden magic</span>
@@ -1111,7 +1182,7 @@ python3 -m triathlon_agent.cli approve runs/&lt;run_id&gt; --mode live</pre>
             <span class="panel-label">Live mode</span>
             <ul>
               <li>Uses a personal API key from local <code>.env</code>.</li>
-              <li>Starts with a fresh fetch through <code>prepare-run</code>.</li>
+              <li>Starts with a fresh fetch through <code>prepare-run</code>; <code>finalize-run</code> refuses until the check-in is recorded.</li>
               <li>Waits for explicit approval before any compile or push step.</li>
               <li>Records exact push payload and push result back into the run folder.</li>
             </ul>
@@ -1122,6 +1193,7 @@ python3 -m triathlon_agent.cli approve runs/&lt;run_id&gt; --mode live</pre>
               <li><code>approval.json</code> begins in <code>pending</code>.</li>
               <li><code>finalize-run</code> renders the human review package.</li>
               <li><code>approve</code> compiles and pushes only after approval is recorded.</li>
+              <li>Approval stores the plan's sha256; any later change to the plan blocks the push until it is re-approved.</li>
             </ul>
           </div>
           <div class="panel">
@@ -1130,6 +1202,7 @@ python3 -m triathlon_agent.cli approve runs/&lt;run_id&gt; --mode live</pre>
               <li>Local contract validation through <code>contracts.py</code>.</li>
               <li>Conservative workout syntax generation in <code>compiler.py</code>.</li>
               <li><code>intervals_syntax_guard</code> checks payload parseability after approval.</li>
+              <li>Events the athlete edited or moved in Intervals are skipped unless <code>--overwrite-edited</code>; nothing is ever deleted.</li>
             </ul>
           </div>
         </div>
@@ -1162,6 +1235,7 @@ python3 -m triathlon_agent.cli approve runs/&lt;run_id&gt; --mode live</pre>
               <li>Swims are pushed as simple swim events when structure does not need full syntax.</li>
               <li>Strength is represented conservatively as structured notes.</li>
               <li>Recovery sessions are not blindly pushed as workouts.</li>
+              <li>Sessions marked <code>push_to_intervals: false</code> (races already on the calendar, other sports) stay out of the push.</li>
             </ul>
           </div>
           <div class="panel">
@@ -1171,6 +1245,9 @@ python3 -m triathlon_agent.cli approve runs/&lt;run_id&gt; --mode live</pre>
               <li><code>compiled_notes.json</code> - nutrition or focus notes</li>
               <li><code>compiled_push_payload.json</code> - exact payload about to be sent</li>
               <li><code>push_result.json</code> - exact response from Intervals</li>
+              <li><code>edited_events.json</code> - events skipped because the athlete changed them</li>
+              <li><code>orphan_events.json</code> - old coach events the new plan no longer has (listed, not deleted)</li>
+              <li><code>threshold_update_result.json</code> - approved FTP / pace / LTHR updates</li>
             </ul>
             <p class="caption">
               This keeps the calendar write-back deterministic and auditable even though the weekly
@@ -1179,7 +1256,7 @@ python3 -m triathlon_agent.cli approve runs/&lt;run_id&gt; --mode live</pre>
           </div>
         </div>
         <footer class="slide-footer">
-          <span>Approved plan -> compiled events -> syntax guard -> Intervals bulk upsert</span>
+          <span>Approved plan -> compiled events -> syntax guard -> edited-event check -> Intervals bulk upsert</span>
           <span class="footer-right">compiler.py + intervals.py</span>
         </footer>
       </div>
@@ -1192,7 +1269,7 @@ python3 -m triathlon_agent.cli approve runs/&lt;run_id&gt; --mode live</pre>
             <span class="eyebrow">Operator Commands</span>
             <h2 class="slide-title">The user-facing surface is intentionally small.</h2>
             <p class="slide-subtitle">
-              Most of the architecture complexity is behind three main commands and one fixture-only
+              Most of the architecture complexity is behind five operator commands and one stub-only
               convenience path.
             </p>
           </div>
@@ -1205,16 +1282,23 @@ python3 -m triathlon_agent.cli approve runs/&lt;run_id&gt; --mode live</pre>
   --athlete-profile data/athlete_profile.json \
   --weekly-checkin data/weekly_checkin.json
 
+python3 -m triathlon_agent.cli record-checkin runs/&lt;run_id&gt; answers.json
+
 python3 -m triathlon_agent.cli finalize-run runs/&lt;run_id&gt;
 
-python3 -m triathlon_agent.cli approve runs/&lt;run_id&gt; --mode live</pre>
+python3 -m triathlon_agent.cli approve runs/&lt;run_id&gt; --mode live
+
+python3 -m triathlon_agent.cli adjust-week runs/&lt;run_id&gt; \
+  --from YYYY-MM-DD --reason "sick" --mode live</pre>
           </div>
           <div class="panel">
             <span class="panel-label">Command semantics</span>
             <ul>
               <li><code>prepare-run</code> fetches and normalizes data, then creates the run shell.</li>
-              <li><code>finalize-run</code> validates specialist outputs and renders the report and athlete brief.</li>
-              <li><code>approve</code> compiles and pushes after approval.</li>
+              <li><code>record-checkin</code> merges the check-in answers and re-normalizes without a new fetch.</li>
+              <li><code>finalize-run</code> validates outputs, runs the coaching audit, and renders the report and athlete brief.</li>
+              <li><code>approve</code> compiles and pushes after approval (<code>--dry-run</code> to preview).</li>
+              <li><code>adjust-week</code> re-plans the remaining days in a new linked run.</li>
               <li><code>plan-week</code> exists for deterministic mock runs and tests, not for live production reasoning.</li>
             </ul>
           </div>
@@ -1259,7 +1343,8 @@ python3 -m triathlon_agent.cli approve runs/&lt;run_id&gt; --mode live</pre>
               <li>Clear separation between reasoning and execution.</li>
               <li>Inspectable, resumable run artifacts.</li>
               <li>Mock and live parity for safer development.</li>
-              <li>Human approval before any calendar mutation.</li>
+              <li>Human approval before any calendar mutation, bound to the exact plan.</li>
+              <li>Deterministic load signals and a coaching audit around the LLM's plan.</li>
               <li>Public-friendly repository shape with local-only secrets and athlete data excluded.</li>
             </ul>
           </div>
