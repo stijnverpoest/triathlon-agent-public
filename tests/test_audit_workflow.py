@@ -34,7 +34,6 @@ from triathlon_agent.contracts import (
     validate_agent_output,
     validate_final_plan,
 )
-from triathlon_agent.dashboard import render_dashboard
 from triathlon_agent.memory import build_athlete_memory, build_response_profile, rpe_compliance
 from triathlon_agent.planning_state import load_planning_state
 from triathlon_agent.race_selection import select_priority_race
@@ -419,32 +418,6 @@ class AtomicWriteTests(unittest.TestCase):
             write_json(path, [1, 2])
             with self.assertRaises(AthleteStateError):
                 load_athlete_state(path)
-
-
-# 8 -------------------------------------------------------------------------
-class DashboardTests(unittest.TestCase):
-    def _render(self, notes: list[dict], reviews: list[dict]) -> str:
-        return render_dashboard(
-            {"prior_plan_adherence": {"session_reviews": reviews}},
-            {"readiness_status": "green"},
-            {},
-            {},
-            {"weekly_focus_notes": notes, "sessions": []},
-        )
-
-    def test_focus_note_label_follows_its_day_and_missed_is_warning(self) -> None:
-        html = self._render(
-            [{"day": "Tuesday", "title": "Tue note", "body": "b"}],
-            [{"session_name": "Long Run", "status": "missed"}],
-        )
-        self.assertIn("Tuesday focus note", html)
-        self.assertNotIn("Monday focus note", html)
-        self.assertIn('review-card warning', html)
-        html = self._render(
-            [{"day": "Tuesday", "title": "Tue"}, {"day": "Monday", "title": "Mon note"}], []
-        )
-        self.assertIn("Monday focus note", html)
-        self.assertIn("Mon note", html)
 
 
 # 9 -------------------------------------------------------------------------

@@ -124,7 +124,6 @@ def main(argv: list[str] | None = None) -> int:
         )
         print(f"Run created: {result['run_dir']}")
         print(f"Report: {result['report_path']}")
-        print(f"Dashboard: {result['dashboard_path']}")
         print(f"Approval status: {result['approval_status']}")
         if result.get("approval_result"):
             print(
@@ -201,7 +200,6 @@ def main(argv: list[str] | None = None) -> int:
         for finding in audit.get("findings", []):
             print(f"  WARNING [{finding['code']}]: {finding['message']}")
         print(f"Report: {result['report_path']}")
-        print(f"Dashboard: {result['dashboard_path']}")
         print(f"Approval status: {result['approval_status']}")
         return 0
 

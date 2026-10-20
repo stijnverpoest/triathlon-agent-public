@@ -969,7 +969,6 @@ python3 -m triathlon_agent.cli approve runs/&lt;run_id&gt; --mode live</pre>
   draft_plan.json
   final_plan.json
   weekly_report.md
-  weekly_dashboard.html
   athlete_brief.md
   agent_outputs/
     performance_doctor.json
@@ -1026,7 +1025,6 @@ python3 -m triathlon_agent.cli approve runs/&lt;run_id&gt; --mode live</pre>
           <article class="card"><h3 class="card-title">intervals.py</h3><p class="card-copy">Provides live and mock adapters. Live mode uses stdlib <code>urllib</code>; mock mode returns fixture-backed responses.</p></article>
           <article class="card"><h3 class="card-title">compiler.py</h3><p class="card-copy">Converts the approved plan into Intervals-compatible workout events and note events, preserving conservative syntax.</p></article>
           <article class="card"><h3 class="card-title">report.py</h3><p class="card-copy">Renders <code>weekly_report.md</code> and <code>athlete_brief.md</code> for human review before push.</p></article>
-          <article class="card"><h3 class="card-title">dashboard.py</h3><p class="card-copy">Builds an HTML dashboard so a run has both narrative and visual review surfaces.</p></article>
           <article class="card"><h3 class="card-title">contracts.py</h3><p class="card-copy">Validates specialist outputs and final plan structure, including doctrine-specific fields like Daniels type or Coggan IF and TSS.</p></article>
         </div>
         <footer class="slide-footer">
@@ -1215,7 +1213,7 @@ python3 -m triathlon_agent.cli approve runs/&lt;run_id&gt; --mode live</pre>
             <span class="panel-label">Command semantics</span>
             <ul>
               <li><code>prepare-run</code> fetches and normalizes data, then creates the run shell.</li>
-              <li><code>finalize-run</code> validates specialist outputs and renders the report and dashboard.</li>
+              <li><code>finalize-run</code> validates specialist outputs and renders the report and athlete brief.</li>
               <li><code>approve</code> compiles and pushes after approval.</li>
               <li><code>plan-week</code> exists for deterministic mock runs and tests, not for live production reasoning.</li>
             </ul>

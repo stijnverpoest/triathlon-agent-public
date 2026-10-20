@@ -34,7 +34,6 @@ from .compiler import compile_note_events, compile_nutrition_notes, compile_plan
 from .checkin import build_post_fetch_checkin, merge_checkin_answers
 from .config import AppConfig
 from .contracts import validate_agent_output, validate_final_plan
-from .dashboard import render_dashboard
 from .intervals import (
     BaseIntervalsAdapter,
     IntervalsAdapterError,
@@ -314,7 +313,6 @@ def _run_context_manifest(
         "final_plan_path": str(run_dir / "final_plan.json"),
         "weekly_report_path": str(run_dir / "weekly_report.md"),
         "athlete_brief_path": str(run_dir / "athlete_brief.md"),
-        "dashboard_path": str(run_dir / "weekly_dashboard.html"),
         "approval_path": str(run_dir / "approval.json"),
         "weekly_checkin_path": str(run_dir / RUN_CHECKIN_FILE),
         "suggested_commands": {
@@ -497,7 +495,6 @@ def _clear_run_artifacts(run_dir: Path) -> None:
         "final_plan.json",
         "weekly_report.md",
         "athlete_brief.md",
-        "weekly_dashboard.html",
         "compiled_workouts.json",
         "compiled_notes.json",
         "compiled_push_payload.json",
@@ -874,16 +871,8 @@ def finalize_run(
         resolved_final_plan,
     )
     athlete_brief = render_athlete_brief(resolved_final_plan)
-    dashboard = render_dashboard(
-        snapshot,
-        outputs["performance_doctor"],
-        outputs["macro_coach"],
-        outputs["race_director"],
-        resolved_final_plan,
-    )
     write_text(run_path / "weekly_report.md", report)
     write_text(run_path / "athlete_brief.md", athlete_brief)
-    write_text(run_path / "weekly_dashboard.html", dashboard)
     if (run_path / "planning_state.json").exists():
         mark_step_complete(run_path, "finalize_run")
     approval = _ensure_approval_file(run_path, approved=auto_approve)
@@ -896,7 +885,6 @@ def finalize_run(
         "run_dir": str(run_path),
         "report_path": str(run_path / "weekly_report.md"),
         "athlete_brief_path": str(run_path / "athlete_brief.md"),
-        "dashboard_path": str(run_path / "weekly_dashboard.html"),
         "approval_status": approval["status"],
         "coaching_audit": resolved_final_plan["coaching_audit"],
     }

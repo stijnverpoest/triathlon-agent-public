@@ -52,7 +52,6 @@ class CliTests(unittest.TestCase):
             self.assertTrue((output_dir / "normalized_snapshot.json").exists())
             self.assertTrue((output_dir / "run_context.json").exists())
             self.assertFalse((output_dir / "weekly_report.md").exists())
-            self.assertFalse((output_dir / "weekly_dashboard.html").exists())
 
     def test_live_plan_week_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

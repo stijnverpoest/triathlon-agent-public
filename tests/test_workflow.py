@@ -49,7 +49,6 @@ class WorkflowTests(unittest.TestCase):
             self.assertEqual(result["approval_status"], "pending")
             self.assertTrue((output_dir / "weekly_report.md").exists())
             self.assertTrue((output_dir / "athlete_brief.md").exists())
-            self.assertTrue((output_dir / "weekly_dashboard.html").exists())
             self.assertTrue((output_dir / "final_plan.json").exists())
             self.assertFalse((output_dir / "compiled_workouts.json").exists())
 
@@ -170,7 +169,6 @@ class WorkflowTests(unittest.TestCase):
             self.assertEqual(finalized["approval_status"], "pending")
             self.assertTrue((output_dir / "weekly_report.md").exists())
             self.assertTrue((output_dir / "athlete_brief.md").exists())
-            self.assertTrue((output_dir / "weekly_dashboard.html").exists())
             self.assertTrue(
                 (output_dir / "agent_outputs" / "orchestrator.json").exists()
             )
