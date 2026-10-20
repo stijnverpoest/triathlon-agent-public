@@ -12,7 +12,7 @@ This file is for coding agents operating in this repository.
 
 ## Important Files
 
-- `README.md`, `OPENCODE.md`, `DESIGN.md`
+- `README.md`, `AGENT_WORKFLOW.md`, `DESIGN.md`
 - `prompts/`, `schemas/`, `triathlon_agent/`, `tests/`
 - `fixtures/`, `data/`, `runs/`
 
@@ -40,7 +40,7 @@ This file is for coding agents operating in this repository.
 - Single test class:
   - `python3 -m unittest tests.test_workflow.WorkflowTests -v`
 - Single test method:
-  - `python3 -m unittest tests.test_workflow.WorkflowTests.test_prepare_and_finalize_support_opencode_orchestration -v`
+  - `python3 -m unittest tests.test_workflow.WorkflowTests.test_prepare_and_finalize_support_agent_orchestration -v`
 
 ### Compile / syntax-check Python
 
@@ -163,7 +163,7 @@ This file is for coding agents operating in this repository.
 
 ## Agent Workflow Expectations
 
-- Prefer the documented OpenCode flow in `OPENCODE.md`.
+- Prefer the documented agent flow in `AGENT_WORKFLOW.md`.
 - Use `prepare-run` + artifact writing + `finalize-run` for production-style orchestration.
 - Use `plan-week` mainly for deterministic stub testing and fixture-backed dry runs.
 - Never push live workouts without an approval step unless the user explicitly instructs it.

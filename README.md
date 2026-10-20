@@ -55,7 +55,7 @@ The committed repo should contain:
 - `fixtures/` deterministic mock data
 - `tests/` verification
 - `data/*.template.json` starter inputs
-- docs such as `README.md`, `DESIGN.md`, `OPENCODE.md` (a worked example for one agent), `PLAN_MY_WEEK_SPEC.md`, and the technical slide deck `triathlon-agent-public-deck.html`
+- docs such as `README.md`, `DESIGN.md`, `AGENT_WORKFLOW.md`, `PLAN_MY_WEEK_SPEC.md`, and the technical slide deck `triathlon-agent-public-deck.html`
 
 The intended production workflow is:
 
@@ -234,7 +234,7 @@ This is the intended production flow.
 
 The exact `plan my week` behavior contract is documented in `PLAN_MY_WEEK_SPEC.md`.
 
-1. In your coding agent (`OPENCODE.md` shows the setup for OpenCode; other agents work the same way with `prompts/master_prompt.md` as their instructions), say something like:
+1. In your coding agent (see `AGENT_WORKFLOW.md`; the agent follows `prompts/master_prompt.md`), say something like:
 
 ```text
 plan my next week

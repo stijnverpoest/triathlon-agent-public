@@ -300,7 +300,7 @@ def _run_context_manifest(
 ) -> dict[str, Any]:
     snapshot = snapshot or {}
     return {
-        "workflow": "opencode-main-agent",
+        "workflow": "main-agent",
         "run_dir": str(run_dir),
         "prompt_dir": str(config.prompt_dir),
         "schema_dir": "schemas",

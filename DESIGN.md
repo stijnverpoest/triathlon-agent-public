@@ -2,7 +2,7 @@
 
 ## Goal
 
-Implement a local weekly coaching workflow where the OpenCode main agent is the real orchestrator and the Python layer handles data preparation, artifact validation, compilation, and push.
+Implement a local weekly coaching workflow where an LLM coding agent (any agent; the workflow is agent-agnostic) is the real orchestrator and the Python layer handles data preparation, artifact validation, compilation, and push.
 
 ## Runtime model
 
@@ -10,15 +10,15 @@ The system is on-demand only.
 
 The intended production sequence is:
 
-1. the OpenCode main agent runs `prepare-run`
+1. the main agent runs `prepare-run`
 2. the Python helper layer pulls Intervals profile, sport settings, wellness, activities, and calendar events
 3. the Python helper layer normalizes the data into one coaching snapshot
-4. the OpenCode main agent verifies that the fetched activity and wellness data are fresh enough for planning
-5. the OpenCode main agent summarizes the prior week from Intervals data and asks only for subjective feedback plus next-week constraints
-6. the OpenCode main agent calls specialist prompts in order and writes JSON artifacts into the run folder
-7. the OpenCode main agent writes `final_plan.json`
+4. the main agent verifies that the fetched activity and wellness data are fresh enough for planning
+5. the main agent summarizes the prior week from Intervals data and asks only for subjective feedback plus next-week constraints
+6. the main agent calls specialist prompts in order and writes JSON artifacts into the run folder
+7. the main agent writes `final_plan.json`
 8. the Python helper layer runs `finalize-run` to validate artifacts and render the report
-9. the OpenCode main agent presents the weekly report and waits for approval
+9. the main agent presents the weekly report and waits for approval
 10. after approval, the Python helper layer compiles workouts plus meaningful daily nutrition notes and pushes them through the adapter
 
 The repository also keeps a deterministic stub workflow for tests and offline fixture-backed runs.
@@ -74,7 +74,7 @@ Every run writes a folder containing:
 - conservative Intervals syntax generation using `description`
 - one primary metric per workout for sync safety
 - strength as structured `WeightTraining` notes, not guaranteed Garmin-native structure
-- OpenCode main agent owns coaching reasoning in production
+- the main agent (any LLM coding agent) owns coaching reasoning in production
 - `Joe Friel` governs periodization and 3:1 block logic
 - `Jack Daniels` governs run taxonomy
 - `Andrew Coggan` governs bike taxonomy and IF/TSS framing
@@ -110,7 +110,7 @@ Every run writes a folder containing:
 
 ## Known limitations
 
-- the OpenCode prompt-call loop is documented rather than embedded inside the Python CLI
+- the agent prompt-call loop is documented rather than embedded inside the Python CLI
 - swim structure is lighter than bike or run structure
 - strength parsing is intentionally conservative
 

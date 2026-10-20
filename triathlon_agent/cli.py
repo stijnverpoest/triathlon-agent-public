@@ -47,7 +47,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     prepare_parser = subparsers.add_parser(
         "prepare-run",
-        help="Prepare a run folder for OpenCode-driven agent orchestration",
+        help="Prepare a run folder for agent-driven orchestration (any LLM coding agent)",
     )
     prepare_parser.add_argument("--mode", choices=["mock", "live"], default=None)
     prepare_parser.add_argument("--athlete-profile", required=True)

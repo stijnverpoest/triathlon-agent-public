@@ -114,7 +114,7 @@ class WorkflowTests(unittest.TestCase):
                     output_dir=str(Path(temp_dir) / "run"),
                 )
 
-    def test_prepare_and_finalize_support_opencode_orchestration(self) -> None:
+    def test_prepare_and_finalize_support_agent_orchestration(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             output_dir = Path(temp_dir) / "run"
             prepared = prepare_run(

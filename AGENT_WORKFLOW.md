@@ -1,6 +1,13 @@
-# OpenCode Workflow
+# Agent Workflow
 
-This repository is designed so the OpenCode main agent can orchestrate the whole weekly coaching run.
+This repository is designed so an LLM coding agent can orchestrate the whole weekly coaching run. It is agent-agnostic: any agent that can run shell commands and read and write files in the repository can be the main agent (for example Claude Code, OpenCode, Codex or Cursor).
+
+## Using it with your agent
+
+- Run the agent from the repository root.
+- Give it `prompts/master_prompt.md` as its instructions for a planning run, for example by asking it to read and follow that file when you say `plan my next week`.
+- `AGENTS.md` holds the repository conventions. Agents that read `AGENTS.md` automatically pick it up; for others, point their own instruction file (such as `CLAUDE.md`) at it.
+- Nothing in the Python layer depends on a specific agent: it only reads and writes the run artifacts listed below.
 
 ## User experience
 
@@ -10,7 +17,7 @@ You should be able to say:
 plan my next week
 ```
 
-The OpenCode main agent then does the following:
+The main agent then does the following:
 
 1. runs `prepare-run`
 2. verifies the snapshot is fresh enough for planning

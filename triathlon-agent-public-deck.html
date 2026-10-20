@@ -610,11 +610,11 @@
             <span class="eyebrow">Technical Public Deck</span>
             <h1 class="slide-title">Triathlon Agent</h1>
             <p class="slide-subtitle">
-              A local, inspectable weekly coaching workflow built from OpenCode orchestration,
+              A local, inspectable weekly coaching workflow orchestrated by any LLM coding agent,
               specialist agents, and a deterministic Python execution layer.
             </p>
             <div class="chips">
-              <span class="chip">OpenCode main agent</span>
+              <span class="chip">Agent-agnostic orchestration</span>
               <span class="chip">Intervals.icu integration</span>
               <span class="chip">Approval before write-back</span>
               <span class="chip">Live and mock modes</span>
@@ -720,7 +720,7 @@
             <span class="eyebrow">System Architecture</span>
             <h2 class="slide-title">Two-layer architecture with a hard boundary at run artifacts.</h2>
             <p class="slide-subtitle">
-              The OpenCode layer owns coaching reasoning. The Python layer owns deterministic
+              The agent layer owns coaching reasoning. The Python layer owns deterministic
               preparation, validation, compilation, and write-back.
             </p>
           </div>
@@ -769,7 +769,7 @@
               <text x="445" y="428" text-anchor="middle" fill="#e8f0ff" font-size="22" font-family="sans-serif" font-weight="700">compiler.py + report.py</text>
 
               <rect x="644" y="106" width="270" height="110" rx="18" fill="url(#boxB)" stroke="rgba(125,255,177,0.28)"></rect>
-              <text x="779" y="144" text-anchor="middle" fill="#e8f0ff" font-size="22" font-family="sans-serif" font-weight="700">OpenCode main agent</text>
+              <text x="779" y="144" text-anchor="middle" fill="#e8f0ff" font-size="22" font-family="sans-serif" font-weight="700">Main coding agent</text>
               <text x="779" y="172" text-anchor="middle" fill="#9db0d3" font-size="15" font-family="monospace">prompt orchestration</text>
               <text x="779" y="194" text-anchor="middle" fill="#9db0d3" font-size="15" font-family="monospace">specialist JSON artifacts</text>
 
@@ -1051,7 +1051,7 @@ python3 -m triathlon_agent.cli approve runs/&lt;run_id&gt; --mode live</pre>
         <div class="slide-body three-col">
           <div class="stat">
             <span class="card-label">LLM layer</span>
-            <h3 class="card-title">OpenCode main agent</h3>
+            <h3 class="card-title">Main coding agent (any)</h3>
             <p class="card-copy">Runs the specialist sequence, asks targeted follow-ups, and synthesizes the weekly coaching package.</p>
           </div>
           <div class="stat">
@@ -1268,7 +1268,7 @@ python3 -m triathlon_agent.cli approve runs/&lt;run_id&gt; --mode live</pre>
           <div class="panel">
             <span class="panel-label">Known limitations</span>
             <ul>
-              <li>The OpenCode prompt-call loop is documented rather than fully embedded inside the CLI.</li>
+              <li>The agent prompt-call loop is documented rather than fully embedded inside the CLI.</li>
               <li>Swim structure is lighter than bike or run structure.</li>
               <li>Strength handling is intentionally conservative.</li>
               <li>The architecture is explicit and file-heavy by design, which means more visible moving parts.</li>
@@ -1313,7 +1313,7 @@ python3 -m triathlon_agent.cli approve runs/&lt;run_id&gt; --mode live</pre>
         </div>
         <footer class="slide-footer">
           <span>Thanks</span>
-          <span class="footer-right">OpenCode + Intervals.icu + Python stdlib</span>
+          <span class="footer-right">Any coding agent + Intervals.icu + Python stdlib</span>
         </footer>
       </div>
     </section>
