@@ -2,7 +2,7 @@
 
 Local, on-demand endurance coaching workflow that plans one training week at a time for triathlon, road running and trail / ultra races.
 
-An LLM agent (OpenCode by default) runs a chain of specialist coaching prompts. A standard-library-only Python layer does the deterministic work around it: it fetches your Intervals.icu data, measures load and readiness, audits the plan against the coaching doctrine, and pushes structured workouts back to Intervals.icu only after you approve the week.
+It is agent-agnostic: any LLM coding agent that can run shell commands and read and write files (Claude Code, OpenCode, Codex, Cursor, ...) can act as the orchestrator and run the chain of specialist coaching prompts. The coaching logic lives in plain Markdown prompts and JSON schemas, not in a vendor-specific integration. A standard-library-only Python layer does the deterministic work around it: it fetches your Intervals.icu data, measures load and readiness, audits the plan against the coaching doctrine, and pushes structured workouts back to Intervals.icu only after you approve the week.
 
 ## What it does
 
@@ -55,12 +55,12 @@ The committed repo should contain:
 - `fixtures/` deterministic mock data
 - `tests/` verification
 - `data/*.template.json` starter inputs
-- docs such as `README.md`, `DESIGN.md`, `OPENCODE.md`, `PLAN_MY_WEEK_SPEC.md`, and the technical slide deck `triathlon-agent-public-deck.html`
+- docs such as `README.md`, `DESIGN.md`, `OPENCODE.md` (a worked example for one agent), `PLAN_MY_WEEK_SPEC.md`, and the technical slide deck `triathlon-agent-public-deck.html`
 
 The intended production workflow is:
 
-- you say `plan my next week` to OpenCode
-- the OpenCode main agent becomes the orchestrator
+- you say `plan my next week` to your coding agent
+- that main agent becomes the orchestrator
 - it fetches a fresh Intervals snapshot before any coaching reasoning
 - it summarizes last week from Intervals, asks only targeted follow-up questions, and then drafts the week
 - it calls the specialist prompt files one by one
@@ -77,7 +77,7 @@ It is intentionally simple:
 
 - pull athlete data
 - normalize it
-- let the OpenCode main agent run specialist prompts in order
+- let the main agent run specialist prompts in order
 - generate a weekly report
 - require approval before write-back
 - compile approved workouts into Intervals.icu workout syntax or structured calendar events
@@ -86,7 +86,7 @@ It is intentionally simple:
 
 ## Folder structure
 
-- `prompts/` agent prompts and master prompt for the OpenCode main agent
+- `prompts/` agent prompts and master prompt for the main agent
 - `schemas/` JSON contracts for agent outputs and the final plan
 - `data/` editable templates for athlete profile, weekly check-in, and optional race-calendar supplements; your filled-in `.json` files stay local
 - `fixtures/` mock Intervals data and example local inputs
@@ -228,19 +228,19 @@ The agent schedules threshold tests itself so FTP, threshold pace, and LTHR stay
 - set the default in `athlete_profile.json` under `threshold_testing.bike_protocol`, or override one week with `"bike_test_protocol": "friel_30"` in the weekly check-in
 - after a test, `prepare-run` reads its laps from Intervals and proposes new values in the report; `approve` pushes the confident ones to Intervals sport settings and records the test in `data/athlete_state.json`
 
-## OpenCode-native workflow
+## Agent-driven workflow
 
 This is the intended production flow.
 
 The exact `plan my week` behavior contract is documented in `PLAN_MY_WEEK_SPEC.md`.
 
-1. In OpenCode, say something like:
+1. In your coding agent (`OPENCODE.md` shows the setup for OpenCode; other agents work the same way with `prompts/master_prompt.md` as their instructions), say something like:
 
 ```text
 plan my next week
 ```
 
-2. The OpenCode main agent should internally run:
+2. The main agent should internally run:
 
 ```bash
 python3 -m triathlon_agent.cli prepare-run \
@@ -287,7 +287,8 @@ In live mode `finalize-run` refuses to run before the check-in is recorded (over
 
 ```mermaid
 flowchart TD
-    U[User: plan my next week] --> O[OpenCode Main Agent]
+    U[User: plan my next week] --> O[Main Agent
+any LLM coding agent]
     O --> P[prepare-run\nfetch + normalize Intervals data]
     P --> PD[performance_doctor]
     PD --> MC[macro_coach]
@@ -428,7 +429,7 @@ The suite is fixture-driven and needs no Intervals.icu access. A test that reads
 - Swims can be pushed as simple `Swim` calendar events with minimal or empty workout text.
 - Nutrition guidance can be pushed as separate daily `NOTE` events titled `Nutrition Targets`.
 - Race events are pulled from Intervals calendar data when they are marked as `RACE_A`, `RACE_B`, `RACE_C`, or `TARGET`.
-- In production, coaching reasoning is expected to come from the OpenCode main agent plus prompt files, not from the deterministic Python stubs.
+- In production, coaching reasoning is expected to come from the main agent plus prompt files, not from the deterministic Python stubs.
 - In production, `plan my week` should not ask you to manually recount completed sessions if live Intervals data has already been fetched.
 - Run sessions should declare a Daniels type.
 - Bike sessions should declare a Coggan level plus expected IF and estimated TSS.
