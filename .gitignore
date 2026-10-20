@@ -4,6 +4,7 @@
 __pycache__/
 *.pyc
 data/*.json
+data/*.bak
 !data/*.template.json
 runs/*
 !runs/.gitkeep
