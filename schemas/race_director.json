@@ -10,6 +10,42 @@
     "specificity_locations"
   ],
   "properties": {
-    "agent": {"const": "race_director"}
+    "agent": {
+      "const": "race_director"
+    },
+    "priority_race": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "description": "The priority race selected from the Intervals.icu calendar (normalized_snapshot.races). Never taken from athlete_state, the profile or other local memory."
+    },
+    "race_specific_needs": {
+      "type": "array"
+    },
+    "specificity_locations": {
+      "type": "array"
+    },
+    "race_recommendations": {
+      "type": "array",
+      "description": "Optional tune-up / fitness-test race suggestions. Each item: type (tune_up | fitness_test), for_race, suggested_distance, ideal_window, enhancement_rationale, covered_by, covered_by_days_to_race.",
+      "items": {
+        "type": "object"
+      }
+    },
+    "b_c_race_handling": {
+      "type": "array",
+      "description": "Mini-taper and post-race easy days for B/C races in or near the week.",
+      "items": {
+        "type": "object"
+      }
+    },
+    "info": {
+      "type": "array",
+      "description": "Neutral notes, e.g. profile races that are not on the Intervals calendar.",
+      "items": {
+        "type": "string"
+      }
+    }
   }
 }

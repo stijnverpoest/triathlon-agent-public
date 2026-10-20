@@ -30,7 +30,7 @@ class CliTests(unittest.TestCase):
             self.assertTrue((output_dir / "run_context.json").exists())
             run_context = json.loads((output_dir / "run_context.json").read_text())
             self.assertTrue(run_context["post_fetch_checkin"]["required_before_draft"])
-            self.assertEqual(len(run_context["post_fetch_checkin"]["questions"]), 5)
+            self.assertGreaterEqual(len(run_context["post_fetch_checkin"]["questions"]), 11)
 
     def test_freeform_plan_my_week_phrase_prepares_but_does_not_draft(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

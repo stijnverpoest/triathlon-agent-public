@@ -17,22 +17,211 @@
     "cut_first"
   ],
   "properties": {
-    "day": {"type": "string"},
-    "date": {"type": "string"},
-    "discipline": {"type": "string"},
-    "session_name": {"type": "string"},
-    "objective": {"type": "string"},
-    "duration_min": {"type": ["integer", "number"]},
-    "intensity_guidance": {"type": "string"},
-    "primary_metric": {"type": "string"},
-    "training_method": {"type": "string"},
-    "daniels_type": {"type": "string"},
-    "coggan_level": {"type": "string"},
-    "expected_if": {"type": ["number", "null"]},
-    "estimated_tss": {"type": ["integer", "number", "null"]},
-    "blocks": {"type": "array"},
-    "execution_notes": {"type": "array"},
-    "success_criteria": {"type": "string"},
-    "cut_first": {"type": "string"}
+    "day": {
+      "type": "string"
+    },
+    "date": {
+      "type": "string"
+    },
+    "discipline": {
+      "type": "string",
+      "description": "Ride, Run, Swim, WeightTraining, Recovery, Race (triathlon race day) or Tennis (fixed other-sport load, not pushed)."
+    },
+    "session_name": {
+      "type": "string"
+    },
+    "objective": {
+      "type": "string"
+    },
+    "duration_min": {
+      "type": [
+        "integer",
+        "number"
+      ]
+    },
+    "intensity_guidance": {
+      "type": "string"
+    },
+    "primary_metric": {
+      "type": "string"
+    },
+    "training_method": {
+      "type": "string"
+    },
+    "daniels_type": {
+      "type": "string",
+      "description": "Daniels run type: E, M, T, I, R, or race on a race-day session."
+    },
+    "coggan_level": {
+      "type": "string"
+    },
+    "expected_if": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "estimated_tss": {
+      "type": [
+        "integer",
+        "number",
+        "null"
+      ]
+    },
+    "blocks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "section"
+        ],
+        "properties": {
+          "steps": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "duration",
+                "target"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "rpe_target": {
+      "type": "string",
+      "description": "Intended effort on the 1-10 RPE scale, e.g. \"3-4/10\". Pushed as plain text above the structured steps."
+    },
+    "feel_cue": {
+      "type": "string",
+      "description": "How it should feel (talk test, breathing). Pushed as plain text above the structured steps."
+    },
+    "bail_out_rule": {
+      "type": "string",
+      "description": "If X then do Y, e.g. \"If the ITB twinges, walk the descents and cut the run short.\" Pushed as plain text above the steps."
+    },
+    "elevation_gain_m": {
+      "type": "number",
+      "minimum": 0
+    },
+    "elevation_loss_m": {
+      "type": "number",
+      "minimum": 0
+    },
+    "terrain": {
+      "enum": [
+        "flat",
+        "rolling",
+        "hilly",
+        "trail",
+        "treadmill_incline",
+        "stairs",
+        "indoor"
+      ]
+    },
+    "execution_notes": {
+      "type": "array"
+    },
+    "success_criteria": {
+      "type": "string"
+    },
+    "cut_first": {
+      "type": "string"
+    },
+    "threshold_test": {
+      "type": "object",
+      "description": "Present only on threshold test sessions.",
+      "required": [
+        "discipline",
+        "protocol"
+      ],
+      "properties": {
+        "discipline": {
+          "enum": [
+            "bike",
+            "run"
+          ]
+        },
+        "protocol": {
+          "enum": [
+            "coggan_20",
+            "friel_30",
+            "friel_30_run"
+          ]
+        },
+        "protocol_label": {
+          "type": "string"
+        },
+        "result_formula": {
+          "type": "string"
+        },
+        "formula_note": {
+          "type": "string"
+        }
+      }
+    },
+    "progression": {
+      "type": "object",
+      "description": "Present on quality sessions: the ladder rung this session sits on, so next week can progress from it.",
+      "properties": {
+        "family": {
+          "enum": [
+            "bike_sweet_spot",
+            "bike_threshold",
+            "bike_vo2",
+            "run_threshold",
+            "run_interval",
+            "run_race_pace",
+            "run_uphill_threshold"
+          ]
+        },
+        "rung": {
+          "type": "integer"
+        },
+        "repeats": {
+          "type": "integer"
+        },
+        "rep_min": {
+          "type": [
+            "integer",
+            "number"
+          ]
+        },
+        "recovery_min": {
+          "type": [
+            "integer",
+            "number"
+          ]
+        },
+        "time_in_zone_min": {
+          "type": [
+            "integer",
+            "number"
+          ]
+        },
+        "target": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        }
+      }
+    },
+    "priority": {
+      "enum": [
+        "key",
+        "support",
+        "optional"
+      ]
+    },
+    "race_day": {
+      "type": "boolean",
+      "description": "True on the session that is the race itself."
+    },
+    "push_to_intervals": {
+      "type": "boolean",
+      "description": "False keeps the session out of the Intervals push (races already on the calendar, tennis)."
+    }
   }
 }

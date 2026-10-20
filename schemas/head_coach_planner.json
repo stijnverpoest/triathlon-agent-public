@@ -10,11 +10,69 @@
     "sessions"
   ],
   "properties": {
-    "agent": {"const": "head_coach_planner"},
-    "weekly_time_budget": {"type": "object"},
+    "agent": {
+      "const": "head_coach_planner"
+    },
+    "weekly_time_budget": {
+      "type": "object",
+      "description": "The head coach's volume decision. reference_min is the athlete's typical week (soft); hard_cap_min is the hours the athlete gave for this week (binding).",
+      "required": [
+        "planned_min",
+        "reference_min",
+        "mode",
+        "rationale"
+      ],
+      "properties": {
+        "planned_min": {
+          "type": "integer"
+        },
+        "reference_min": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "mode": {
+          "enum": [
+            "coach_decided",
+            "hard_cap"
+          ]
+        },
+        "rationale": {
+          "type": "string"
+        },
+        "hard_cap_min": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "cuts": {
+          "type": "array",
+          "description": "What was cut to fit the cap: easy volume first, then secondary quality, long session last.",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
     "sessions": {
       "type": "array",
-      "items": {"$ref": "session.json"}
+      "items": {
+        "$ref": "session.json"
+      }
+    },
+    "quality_session_count": {
+      "type": "integer",
+      "description": "Number of genuine quality sessions the head coach chose (<= performance_doctor.intensity_allowance.max_quality_sessions)."
+    },
+    "progression_budget": {
+      "type": "object",
+      "description": "Which elements progress this week (max 2, max 1 run-impact) and which were held."
+    },
+    "missed_session_policy": {
+      "type": "string",
+      "description": "Move a missed key session only when it stays 48 h clear of the next quality or long session; otherwise drop it and repeat the rung."
     }
   }
 }

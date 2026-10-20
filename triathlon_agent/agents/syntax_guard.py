@@ -1,6 +1,15 @@
 from __future__ import annotations
 
+import re
 from typing import Any
+
+_ZONE_TO_PACE: dict[str, str] = {
+    "1": "70-75% Pace",
+    "2": "75% Pace",
+    "3": "85% Pace",
+    "4": "100% Pace",
+    "5": "105% Pace",
+}
 
 
 ALLOWED_SECTION_PREFIXES = (
@@ -10,20 +19,77 @@ ALLOWED_SECTION_PREFIXES = (
     "Finish",
     "Race Rhythm",
     "Reset",
-    # Additional section names used in session_library
+    # Additional section names used by the planner
     "Strides",
     "Steady Finish",
     "Build Block",
     "Fueling Block",
     "Openers",
     "Easy Run",
+    # Run section names
+    "Easy Aerobic Run",
+    "Long Aerobic Run",
+    "Threshold Repeats",
+    "Club Session",
+    "Brick Run",
+    "Race Effort",
+    # Bike section names
+    "Sweet Spot Intervals",
+    "Low-Cadence Strength Blocks",
+    "Aerobic Base",
+    "Race-Rhythm Blocks",
+    "Tempo Flush",
+    "Easy Spin",
+    # Swim section names
+    "Easy Swim",
+    # Threshold test section names
+    "Blowout",
+    "Recovery Spin",
+    "Test Effort",
 )
+
+
+# Plain-text coaching lines the compiler puts above the structured steps.
+# They never start with "-" and carry no duration/target token, so the
+# Intervals parser treats them as description text, not as steps.
+COACH_TEXT_PREFIXES = (
+    "Why:",
+    "Feel:",
+    "RPE target:",
+    "Bail out:",
+    "Fuel:",
+    "Terrain:",
+)
+# A duration token (10m, 90s, 1h, 1h30m, 400mtr) or a target token
+# (Z2, 85%, 4:30/km, 250w, 140bpm, 90rpm) in a plain-text line could be
+# parsed by Intervals; coaching text must contain neither.
+DURATION_TOKEN_RE = re.compile(
+    r"(?<![\w.])\d+(?:\.\d+)?\s?(?:h|m|s|min|mins|sec|secs|km|mtr)(?![\w])", re.IGNORECASE
+)
+TARGET_TOKEN_RE = re.compile(
+    r"\bZ\d\b|\d\s?%|\d+:\d{2}\s?/\s?(?:km|mi|100m)|\b\d+\s?(?:w|bpm|rpm)\b", re.IGNORECASE
+)
+
+
+def looks_like_step(line: str) -> bool:
+    """True when a text line could be read as a workout step by Intervals."""
+    text = line.strip()
+    if text.startswith("-"):
+        return True
+    return bool(DURATION_TOKEN_RE.search(text) or TARGET_TOKEN_RE.search(text))
+
+
+def is_coach_text_line(line: str) -> bool:
+    text = line.strip()
+    return text.startswith(COACH_TEXT_PREFIXES) and not looks_like_step(text)
 
 
 def _normalize_step_line(line: str) -> str:
     line = line.strip()
     if not line:
         return ""
+    if is_coach_text_line(line):
+        return line
     if line.startswith("-"):
         return f"- {line[1:].strip()}"
     if line.endswith("x") and line[:-1].strip().isdigit():
@@ -70,9 +136,25 @@ def review(workout: dict[str, Any]) -> dict[str, Any]:
     if not valid:
         fallback = normalized_description
         if discipline == "Run" and primary_metric == "HR":
-            fallback = normalized_description.replace("Pace", "HR")
+            # Fix bare zone labels: @Z1, Z2, Z1-Z2 -> Z1 HR, Z2 HR, Z1-Z2 HR
+            def _add_hr(m: re.Match) -> str:
+                return f"{m.group(1).lstrip('@')} HR"
+            fallback = re.sub(r"@?(Z\d+(?:-Z\d+)?)(?!\s*HR)", _add_hr, fallback)
         elif discipline == "Run" and primary_metric == "Pace":
-            fallback = normalized_description.replace("HR", "Pace")
+            # Fix bare zone labels: @Z1, Z2 -> % Pace equivalent
+            def _zone_to_pace(m: re.Match) -> str:
+                upper = m.group(2) or m.group(1)
+                return _ZONE_TO_PACE.get(upper, f"Z{upper} Pace")
+            fallback = re.sub(r"@?Z(\d+)(?:-Z(\d+))?(?!\s*(?:Pace|HR|\d))", _zone_to_pace, fallback)
+            # If still no "Pace" anywhere, append it to each step target line
+            if "Pace" not in fallback:
+                lines = []
+                for line in fallback.splitlines():
+                    if line.startswith("-") and "Pace" not in line and "HR" not in line:
+                        lines.append(f"{line} Pace")
+                    else:
+                        lines.append(line)
+                fallback = "\n".join(lines)
         elif discipline == "Ride" and "%" not in normalized_description:
             lines = []
             for line in normalized_description.splitlines():

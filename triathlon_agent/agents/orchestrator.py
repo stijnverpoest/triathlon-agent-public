@@ -1,9 +1,132 @@
 from __future__ import annotations
 
+import re
 from copy import deepcopy
+from datetime import timedelta
 from typing import Any
 
 from . import nutritionist as nutritionist_agent
+from ..race_selection import select_priority_race
+from ..utils import day_name, parse_date, slugify
+
+
+DECISION_RE = re.compile(
+    r"\b(decide|decision|choose|choosing|beslis\w*|beslissing|kiezen|keuze)\b", re.IGNORECASE
+)
+RACE_WORD_RE = re.compile(r"\b(race|races|wedstrijd\w*|goal|doel|entry|inschrijv\w*)\b", re.IGNORECASE)
+ISO_DATE_RE = re.compile(r"\b(\d{4}-\d{2}-\d{2})\b")
+DECISION_CLAUSE_SPLIT_RE = re.compile(r"[.;\n!?]")
+
+
+def _priority_race_label(snapshot: dict[str, Any]) -> str | None:
+    """The Intervals priority race as 'Name (YYYY-MM-DD)'; races only come from Intervals."""
+    race = select_priority_race(snapshot)
+    if not race or not race.get("name"):
+        return None
+    return f"{race['name']} ({race.get('date')})"
+
+
+def _race_decision_question(text: str, snapshot: dict[str, Any]) -> str:
+    if not RACE_WORD_RE.search(text):
+        return text
+    label = _priority_race_label(snapshot)
+    if label is None:
+        return f"{text} (no race is on your Intervals calendar yet: add it there first)"
+    race = select_priority_race(snapshot) or {}
+    if str(race.get("name", "")).lower() in text.lower():
+        return text if str(race.get("date")) in text else f"{text} [{race.get('date')}]"
+    return f"{text} (for {label} on your Intervals calendar)"
+
+
+def build_open_decisions(snapshot: dict[str, Any]) -> list[dict[str, Any]]:
+    """Open decisions: carried-over unanswered ones plus 'decide ...' items from the check-in."""
+    weekly = snapshot.get("weekly_checkin") or {}
+    week_start = snapshot.get("week_start")
+    default_due = (
+        (parse_date(week_start) + timedelta(days=6)).isoformat() if week_start else None
+    )
+    decisions: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    state = snapshot.get("athlete_state") or {}
+    for stored in state.get("open_decisions") or []:
+        if stored.get("status") != "open":
+            continue
+        question = str(stored.get("question") or "").strip()
+        if not question or slugify(question) in seen:
+            continue
+        seen.add(slugify(question))
+        decisions.append(
+            {
+                "question": question,
+                "due_date": stored.get("due_date"),
+                "options": list(stored.get("options") or []),
+                "default_if_no_answer": stored.get("default_if_no_answer")
+                or "Keep the current plan.",
+                "carried_over": True,
+            }
+        )
+    texts: list[str] = [str(weekly.get("athlete_notes") or "")]
+    for field in ("time_constraints", "upcoming_events"):
+        value = weekly.get(field)
+        if isinstance(value, list):
+            texts.extend(str(item) for item in value)
+    answered = {
+        slugify(str(key)) for key in (weekly.get("decision_answers") or {})
+    } if isinstance(weekly.get("decision_answers"), dict) else set()
+    for text in texts:
+        for clause in DECISION_CLAUSE_SPLIT_RE.split(text):
+            clause = clause.strip(" ,-")
+            if not clause or not DECISION_RE.search(clause):
+                continue
+            question = _race_decision_question(clause[0].upper() + clause[1:], snapshot)
+            key = slugify(question)
+            if key in seen or key in answered:
+                continue
+            seen.add(key)
+            due_match = ISO_DATE_RE.search(clause)
+            decisions.append(
+                {
+                    "question": question,
+                    "due_date": due_match.group(1) if due_match else default_due,
+                    "options": [],
+                    "default_if_no_answer": "Keep the current plan unchanged.",
+                }
+            )
+    return decisions
+
+
+def _rest_only_sessions(
+    snapshot: dict[str, Any], sessions: list[dict[str, Any]], message: str
+) -> list[dict[str, Any]]:
+    """A medical red flag replaces the week with rest / easy walking only."""
+    dates = sorted({str(session.get("date")) for session in sessions if session.get("date")})
+    week_start = snapshot.get("week_start")
+    if week_start:
+        first = parse_date(week_start)
+        dates = [(first + timedelta(days=offset)).isoformat() for offset in range(7)]
+    rest = []
+    for date_text in dates:
+        rest.append(
+            {
+                "day": day_name(parse_date(date_text)),
+                "date": date_text,
+                "discipline": "Recovery",
+                "session_name": "Rest - medical red flag",
+                "objective": "No training until a doctor has cleared you. Easy walking only if you feel well.",
+                "duration_min": 0,
+                "intensity_guidance": "Rest or easy walking only",
+                "primary_metric": "notes",
+                "blocks": [],
+                "execution_notes": [message],
+                "success_criteria": "You have seen a doctor and been cleared before any training resumes.",
+                "cut_first": "Everything: rest is the plan this week.",
+                "priority": "support",
+                "push_to_intervals": False,
+                "feel_cue": "If walking makes symptoms return, stop and rest.",
+                "bail_out_rule": "If chest pain, palpitations, fainting or breathlessness occur, seek medical help immediately.",
+            }
+        )
+    return rest
 
 
 def _estimate_load(session: dict[str, Any]) -> int:
@@ -26,6 +149,8 @@ def _estimate_load(session: dict[str, Any]) -> int:
 def _session_rank(session: dict[str, Any]) -> tuple[int, int]:
     discipline = session.get("discipline")
     name = str(session.get("session_name", "")).lower()
+    if session.get("race_day"):
+        return (-1, 0)
     if session.get("priority") == "key":
         return (0, -int(session.get("duration_min", 0) or 0))
     if discipline == "Ride" and "long" in name:
@@ -91,7 +216,16 @@ def _refresh_phase_alignment(
         if "one clear bike quality session" not in signal
         and "explicit weekly time cap" not in signal
     ]
-    if macro.get("week_classification") == "recovery":
+    test_names = [
+        session["session_name"]
+        for session in final_sessions
+        if session.get("threshold_test")
+    ]
+    if macro.get("week_classification") == "recovery" and test_names:
+        supporting_signals.append(
+            f"The final week is recovery-oriented and closes with a Friel rest & test: {', '.join(test_names)}; everything else stays aerobic."
+        )
+    elif macro.get("week_classification") == "recovery":
         supporting_signals.append(
             "The final week is truly recovery-oriented: no threshold run remains, bike work is aerobic, and the longer weekend sessions stay controlled."
         )
@@ -315,6 +449,16 @@ def _build_executive_summary(
         None,
     )
     fixed_swim_days = constraints.get("fixed_swim_days", [])
+    race_sessions = [session for session in sessions if session.get("race_day")]
+    if macro.get("macro_phase") == "transition":
+        return "Use a post-race transition week: short, easy, optional sessions only, no quality and no tests, so body and head recover before the next block."
+    if macro.get("week_classification") == "holiday":
+        return "Use a light holiday week: keep moving with easy, optional sessions and enjoy the break; it doubles as the unload week of the block."
+    if race_sessions:
+        names = " and ".join(session["session_name"].replace("RACE: ", "") for session in race_sessions)
+        return f"Race week for {names}: protect freshness, keep a short sharp touch early, an opener the day before, and an easy or off day after."
+    if macro.get("macro_phase") == "taper":
+        return "Use a taper week: volume comes down and the long sessions shorten, while short intensity touches keep the legs sharp for race day."
     if macro.get("week_classification") == "recovery":
         return "Use a true recovery week: keep the swim routine and longer aerobic weekend, but remove threshold density so freshness returns for the next block."
     if macro.get("week_classification") == "absorb":
@@ -384,6 +528,7 @@ def _build_coach_note(
         note_parts.append(
             "The validator trimmed extra clutter so the week stays more executable in real life."
         )
+    note_parts.extend(validator.get("info", [])[:1])
     return " ".join(note_parts)
 
 
@@ -476,7 +621,13 @@ def _build_athlete_brief(
     athlete = snapshot.get("athlete_profile", {})
     protect_if_busy = _protected_sessions(final_plan.get("sessions", []), limit=3)
     watch_for = list(
-        dict.fromkeys([*performance.get("warnings", []), performance["main_risk"]])
+        dict.fromkeys(
+            [
+                *performance.get("warnings", []),
+                performance["main_risk"],
+                *final_plan.get("planner_warnings", []),
+            ]
+        )
     )
     why_this_week = (
         what_last_week_tells_us
@@ -498,8 +649,13 @@ def _build_athlete_brief(
             "simpler_alternative",
             "Keep the key sessions and strip everything else back to easy support work.",
         ),
-        "constraint_overrides": _constraint_override_notes(
-            final_plan.get("sessions", []), constraints
+        "constraint_overrides": list(
+            dict.fromkeys(
+                [
+                    *_constraint_override_notes(final_plan.get("sessions", []), constraints),
+                    *final_plan.get("planner_notes", []),
+                ]
+            )
         ),
         "tone": athlete.get("coaching_tone_preference", "Direct and practical"),
     }
@@ -590,6 +746,51 @@ def _build_session_fueling_lookup(
     }
 
 
+def _build_threshold_testing(
+    snapshot: dict[str, Any],
+    macro: dict[str, Any],
+    sessions: list[dict[str, Any]],
+) -> dict[str, Any]:
+    testing = snapshot.get("threshold_testing", {})
+    decision = macro.get("threshold_tests") or {}
+    test_sessions = {
+        session["threshold_test"]["discipline"]: session
+        for session in sessions
+        if session.get("threshold_test")
+    }
+    scheduled = []
+    for entry in decision.get("scheduled", []):
+        session = test_sessions.get(entry["discipline"])
+        scheduled.append(
+            {
+                **entry,
+                "date": session.get("date") if session else None,
+                "session_name": session.get("session_name") if session else None,
+            }
+        )
+    return {
+        "status": {
+            discipline: {
+                key: (testing.get(discipline) or {}).get(key)
+                for key in (
+                    "status",
+                    "reason",
+                    "blockers",
+                    "last_test_date",
+                    "days_since_last_test",
+                    "protocol",
+                )
+            }
+            for discipline in ("bike", "run")
+        },
+        "scheduled": scheduled,
+        "deferred": decision.get("deferred", []),
+        "rationale": decision.get("rationale", ""),
+        "completed_tests": testing.get("completed_tests", []),
+        "threshold_updates": testing.get("proposed_updates", []),
+    }
+
+
 def run(
     snapshot: dict[str, Any],
     performance: dict[str, Any],
@@ -602,6 +803,15 @@ def run(
     nutrition: dict[str, Any],
 ) -> dict[str, Any]:
     final_plan, incorporated = _apply_validator_edits(draft_plan, validator)
+    stop_message = None
+    if performance.get("training_clearance") == "no_training_see_doctor":
+        stop_message = next(
+            (item for item in performance.get("constraints", []) if "see a doctor" in item),
+            "Stop training and see a doctor before resuming.",
+        )
+        final_plan["sessions"] = _rest_only_sessions(
+            snapshot, final_plan["sessions"], stop_message
+        )
     constraints = snapshot.get("planning_constraints", {})
     final_phase_alignment = _refresh_phase_alignment(
         phase_alignment, macro, final_plan["sessions"], constraints
@@ -650,8 +860,10 @@ def run(
     race_notes["specificity_locations"] = _dynamic_specificity_locations(
         final_plan["sessions"], macro, race.get("specificity_locations", [])
     )
-    executive_summary = _build_executive_summary(
-        macro, final_plan["sessions"], constraints
+    executive_summary = (
+        f"No training this week. {stop_message}"
+        if stop_message
+        else _build_executive_summary(macro, final_plan["sessions"], constraints)
     )
     what_last_week_tells_us = _build_last_week_tells_us(snapshot, performance)
     athlete_brief = _build_athlete_brief(
@@ -679,6 +891,38 @@ def run(
             if note.get("push_to_intervals") and note.get("body", "").strip()
         ],
     ]
+
+    threshold_testing = _build_threshold_testing(
+        snapshot, macro, final_plan["sessions"]
+    )
+    applied_updates = [
+        update
+        for update in threshold_testing["threshold_updates"]
+        if update.get("apply")
+    ]
+    approval_checkpoint = "Approve this narrative plan before the system compiles and pushes workouts plus nutrition notes to Intervals.icu."
+    if applied_updates:
+        approval_checkpoint = (
+            f"{approval_checkpoint} Approval also updates {len(applied_updates)} threshold setting(s) in Intervals.icu sport settings: "
+            + ", ".join(
+                f"{update['sport']} {update['label']} {update['current_display']} -> {update['proposed_display']}"
+                for update in applied_updates
+            )
+            + "."
+        )
+    open_decisions = build_open_decisions(snapshot)
+    if open_decisions:
+        approval_checkpoint = (
+            f"{approval_checkpoint} Open decision(s) still need your answer: "
+            + "; ".join(
+                decision["question"]
+                + (f" (by {decision['due_date']})" if decision.get("due_date") else "")
+                for decision in open_decisions
+            )
+            + "."
+        )
+    if stop_message:
+        approval_checkpoint = f"{stop_message} {approval_checkpoint}"
 
     return {
         "agent": "orchestrator",
@@ -719,7 +963,9 @@ def run(
         "validator_summary": validator,
         "nutrition_summary": final_nutrition,
         "race_notes": race_notes,
-        "approval_checkpoint": "Approve this narrative plan before the system compiles and pushes workouts plus nutrition notes to Intervals.icu.",
+        "approval_checkpoint": approval_checkpoint,
+        "open_decisions": open_decisions,
+        "threshold_testing": threshold_testing,
         "write_back_preview": {
             "planned_workouts_to_push": len(planned_workouts),
             "planned_notes_to_push": len(note_dates),

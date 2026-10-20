@@ -3,6 +3,16 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import Any
 
+from ..coaching_limits import (
+    LONG_SESSION_MIN,
+    MAX_WEEKLY_TOTAL_GROWTH_PCT,
+    OVER_REFERENCE_WARN_PCT,
+    baseline_week_minutes,
+    is_health_reason,
+    safe_float,
+)
+from .head_coach_planner import LIGHT_STRENGTH_MAX_MIN, hard_cap_minutes, reduced_dose_week
+
 
 DAY_NAMES = (
     "Monday",
@@ -13,7 +23,13 @@ DAY_NAMES = (
     "Saturday",
     "Sunday",
 )
-VERDICT_RANK = {"keep": 0, "revise lightly": 1, "revise": 2, "unsafe": 3}
+# Validator verdict vocabulary, mildest first. The prompts' "revise materially"
+# is the `revise` verdict; `unsafe` means the week must not be pushed as is.
+VERDICTS = ("keep", "revise lightly", "revise", "unsafe")
+VERDICT_RANK = {verdict: rank for rank, verdict in enumerate(VERDICTS)}
+# Planned hours this far above the athlete's typical week are a life-load risk
+# (9-5 job, ~7 h sleep: hours compete with sleep and work), whatever readiness says.
+OVER_REFERENCE_RISK_PCT = OVER_REFERENCE_WARN_PCT
 
 
 def _bump_verdict(current: str, proposed: str) -> str:
@@ -34,7 +50,13 @@ def _choose_support_session_for_trim(
     return None
 
 
+def _threshold_test(session: dict[str, Any]) -> bool:
+    return bool(session.get("threshold_test"))
+
+
 def _quality_run(session: dict[str, Any]) -> bool:
+    if _threshold_test(session):
+        return False
     return session.get("discipline") == "Run" and (
         session.get("primary_metric") == "Pace"
         or session.get("daniels_type") in {"T", "I", "R"}
@@ -42,18 +64,13 @@ def _quality_run(session: dict[str, Any]) -> bool:
 
 
 def _quality_ride(session: dict[str, Any]) -> bool:
-    if session.get("discipline") != "Ride":
+    if session.get("discipline") != "Ride" or _threshold_test(session):
         return False
+    if session.get("progression"):
+        return True
     if session.get("coggan_level") in {"L4 Threshold", "L5 VO2max", "L6 Anaerobic"}:
         return True
-    if float(session.get("expected_if", 0) or 0) >= 0.78:
-        return True
-    if (
-        session.get("priority") == "key"
-        and "endurance" not in str(session.get("session_name", "")).lower()
-    ):
-        return True
-    return False
+    return float(session.get("expected_if", 0) or 0) >= 0.78
 
 
 def _session_reference(session: dict[str, Any]) -> dict[str, Any]:
@@ -85,6 +102,202 @@ def _week_similarity(
     overlap = sum(1 for item in current if item in prior)
     size = max(len(current), len(prior))
     return overlap / size if size else 0.0
+
+
+def _is_recovery_week(snapshot: dict[str, Any], macro: dict[str, Any]) -> bool:
+    return (
+        macro.get("week_classification") in {"recovery", "unload", "holiday"}
+        or macro.get("friel_cycle_type") == "recovery"
+        or macro.get("macro_phase") == "transition"
+        or snapshot.get("planning_constraints", {}).get("requested_week_type")
+        == "recovery"
+    )
+
+
+def _is_taper(macro: dict[str, Any]) -> bool:
+    return macro.get("macro_phase") == "taper" or macro.get("friel_cycle_type") == "taper"
+
+
+def _light_strength_week(
+    snapshot: dict[str, Any], macro: dict[str, Any], performance: dict[str, Any]
+) -> bool:
+    """Same rule as the planner's strength prescription (<= LIGHT_STRENGTH_MAX_MIN)."""
+    return (
+        performance.get("readiness_status") != "green"
+        or macro.get("week_classification") in {"absorb", "sharpen"}
+        or _is_recovery_week(snapshot, macro)
+        or _is_taper(macro)
+    )
+
+
+def _is_long_durability(session: dict[str, Any]) -> bool:
+    if _threshold_test(session) or _quality_run(session) or session.get("progression"):
+        return False
+    if session.get("discipline") == "Ride" and _quality_ride(session):
+        return False
+    minimum = LONG_SESSION_MIN.get(str(session.get("discipline")))
+    return minimum is not None and int(session.get("duration_min", 0) or 0) >= minimum
+
+
+def _reference_minutes(snapshot: dict[str, Any]) -> int | None:
+    """The athlete's typical week (soft reference): profile hours first."""
+    hours = safe_float((snapshot.get("athlete_profile", {}) or {}).get("typical_training_hours_per_week"))
+    if hours:
+        return int(hours * 60)
+    constraints = snapshot.get("planning_constraints", {}) or {}
+    value = safe_float((constraints.get("weekly_time_budget_policy") or {}).get("reference_min"))
+    return int(value) if value else None
+
+
+def _health_explained_misses(snapshot: dict[str, Any]) -> bool:
+    reasons = (snapshot.get("weekly_checkin") or {}).get("missed_session_reasons") or {}
+    return isinstance(reasons, dict) and bool(reasons) and all(
+        is_health_reason(reason) for reason in reasons.values()
+    )
+
+
+def _check_scheduled_tests_present(
+    sessions: list[dict[str, Any]],
+    macro: dict[str, Any],
+    verdict: str,
+    weaknesses: list[str],
+    edits: list[dict[str, Any]],
+) -> str:
+    planned = {
+        (session.get("threshold_test") or {}).get("discipline")
+        for session in sessions
+        if session.get("threshold_test")
+    }
+    for entry in (macro.get("threshold_tests") or {}).get("scheduled", []):
+        if entry.get("discipline") in planned:
+            continue
+        verdict = _bump_verdict(verdict, "revise")
+        weaknesses.append(
+            f"The macro coach scheduled a {entry['discipline']} threshold test this recovery week, but the plan does not contain it."
+        )
+        edits.append(
+            {
+                "id": f"add-{entry['discipline']}-threshold-test",
+                "action": "add_threshold_test",
+                "summary": f"Add the {entry['discipline']} threshold test ({entry.get('protocol')}) late in the recovery week.",
+            }
+        )
+    return verdict
+
+
+def _check_quality_dose(
+    quality_sessions: list[dict[str, Any]],
+    performance: dict[str, Any],
+    recovery_week: bool,
+    verdict: str,
+    strengths: list[str],
+    weaknesses: list[str],
+    *,
+    sessions: list[dict[str, Any]] | None = None,
+    reduced: bool = False,
+) -> str:
+    """Flag under-dosing as firmly as over-dosing."""
+    if recovery_week:
+        return verdict
+    allowance = performance.get("intensity_allowance") or {}
+    maximum = allowance.get("max_quality_sessions")
+    if maximum is None:
+        return verdict
+    # A race in the week counts as its quality session.
+    count = len(quality_sessions)
+    races = sum(1 for session in sessions or [] if session.get("race_day"))
+    underload = (performance.get("underload") or {}).get("status")
+    if count > int(maximum):
+        verdict = _bump_verdict(verdict, "revise")
+        weaknesses.append(
+            f"{count} quality sessions exceed the readiness allowance of {maximum}."
+        )
+    elif performance.get("readiness_status") == "green" and count + races < min(2, int(maximum)) and not reduced:
+        verdict = _bump_verdict(verdict, "revise lightly")
+        weaknesses.append(
+            f"Only {count} quality session(s) in a green load week; the allowance is {maximum}. The week is under-dosed."
+        )
+    elif underload == "detected" and count < int(maximum):
+        verdict = _bump_verdict(verdict, "revise lightly")
+        weaknesses.append(
+            f"Underload is detected but the week uses {count} of {maximum} allowed quality sessions; add one or extend time-in-zone."
+        )
+    else:
+        strengths.append(
+            f"{count} quality session(s) match the readiness allowance of {maximum}."
+        )
+    return verdict
+
+
+def _check_threshold_tests(
+    sessions: list[dict[str, Any]],
+    snapshot: dict[str, Any],
+    macro: dict[str, Any],
+    performance: dict[str, Any],
+    verdict: str,
+    strengths: list[str],
+    weaknesses: list[str],
+) -> str:
+    tests = [session for session in sessions if _threshold_test(session)]
+    if not tests:
+        return verdict
+    testing = snapshot.get("threshold_testing", {})
+    recovery_week = _is_recovery_week(snapshot, macro)
+    block_week_1 = any(
+        entry.get("placement") == "block_week_1"
+        for entry in (macro.get("threshold_tests") or {}).get("scheduled", [])
+    )
+    if not recovery_week and not block_week_1:
+        verdict = _bump_verdict(verdict, "revise")
+        weaknesses.append(
+            "Threshold tests belong at the end of a recovery week (Friel rest & test) or in block week 1 "
+            "straight after it, not inside a load week."
+        )
+    if performance.get("readiness_status") == "red":
+        verdict = _bump_verdict(verdict, "unsafe")
+        weaknesses.append("A maximal threshold test is planned while readiness is red.")
+    if len(tests) > 2:
+        verdict = _bump_verdict(verdict, "revise")
+        weaknesses.append("More than two threshold tests in one week is excessive.")
+    test_days = sorted(
+        DAY_NAMES.index(session["day"])
+        for session in tests
+        if session["day"] in DAY_NAMES
+    )
+    if any(b - a < 2 for a, b in zip(test_days, test_days[1:])):
+        verdict = _bump_verdict(verdict, "revise")
+        weaknesses.append("Two threshold tests are less than 48h apart.")
+    for session in tests:
+        discipline = session["threshold_test"].get("discipline")
+        blockers = (testing.get(discipline) or {}).get("blockers", [])
+        if blockers:
+            verdict = _bump_verdict(verdict, "revise")
+            weaknesses.append(
+                f"{session['session_name']} conflicts with a testing blocker: {blockers[0]}"
+            )
+        index = DAY_NAMES.index(session["day"])
+        neighbours = {
+            DAY_NAMES[offset]
+            for offset in (index - 1, index + 1)
+            if 0 <= offset < len(DAY_NAMES)
+        }
+        hard_neighbours = [
+            other["session_name"]
+            for other in sessions
+            if other["day"] in neighbours
+            and not _threshold_test(other)
+            and (_quality_run(other) or _quality_ride(other))
+        ]
+        if hard_neighbours:
+            verdict = _bump_verdict(verdict, "revise lightly")
+            weaknesses.append(
+                f"{session['session_name']} sits next to hard work ({', '.join(hard_neighbours)}); keep the days around a test easy."
+            )
+    if recovery_week and verdict in {"keep", "revise lightly"}:
+        strengths.append(
+            "Threshold testing lands late in the recovery week, fresh and without hard work alongside, so the result is trustworthy."
+        )
+    return verdict
 
 
 def run(
@@ -186,21 +399,56 @@ def run(
                 }
             )
 
-    weekly_cap = constraints.get("available_hours_override_min")
-    if weekly_cap not in (None, "") and total_minutes > int(weekly_cap):
+    info: list[str] = []
+    hard_cap = hard_cap_minutes(snapshot)
+    if hard_cap and total_minutes > hard_cap:
+        verdict = _bump_verdict(verdict, "revise")
+        weaknesses.append(
+            f"Planned total {total_minutes} min exceeds the available-hours cap of {hard_cap} min from the check-in; "
+            "that cap binds: cut easy volume first, then the secondary quality, and trim the long session last."
+        )
+    weekly_reference = _reference_minutes(snapshot)
+    if weekly_reference and total_minutes > weekly_reference:
+        over_pct = round(100.0 * (total_minutes - weekly_reference) / weekly_reference, 1)
+        if over_pct > OVER_REFERENCE_RISK_PCT:
+            verdict = _bump_verdict(verdict, "revise lightly")
+            not_green = performance.get("readiness_status") in {"yellow", "red"}
+            weaknesses.append(
+                f"Planned total {total_minutes} min is {over_pct}% above the athlete's typical {weekly_reference} min"
+                + (" while readiness is not green" if not_green else "")
+                + "; with a 9-5 job and ~7 h sleep the extra hours come out of sleep and recovery."
+            )
+        info.append(
+            f"Planned total {total_minutes} min is {over_pct}% above the athlete's {weekly_reference}-min reference; "
+            "life load (work, sleep, family) is part of the training load, so check it is realistic."
+        )
+    baseline = baseline_week_minutes(snapshot)
+    trained = sum(
+        int(session.get("duration_min", 0) or 0)
+        for session in sessions
+        if session.get("discipline") != "Recovery" and not session.get("race_day")
+    )
+    if baseline and trained > baseline * (1 + MAX_WEEKLY_TOTAL_GROWTH_PCT / 100):
         verdict = _bump_verdict(verdict, "revise lightly")
         weaknesses.append(
-            f"Planned total is {total_minutes} minutes against a {weekly_cap}-minute weekly cap."
+            f"Planned {trained} min is {round(100 * (trained / baseline - 1), 1)}% above the recent loaded "
+            f"weekly average of {baseline:.0f} min; grow by at most ~{MAX_WEEKLY_TOTAL_GROWTH_PCT:g}% a week."
         )
-    elif weekly_cap not in (None, ""):
-        strengths.append("The total planned time fits the stated weekly time budget.")
 
     quality_sessions = [
         session
         for session in sessions
         if _quality_run(session) or _quality_ride(session)
     ]
-    if macro.get("week_classification") == "recovery":
+    recovery_week = _is_recovery_week(snapshot, macro)
+    verdict = _check_quality_dose(
+        quality_sessions, performance, recovery_week or _is_taper(macro), verdict, strengths, weaknesses,
+        sessions=sessions, reduced=reduced_dose_week(snapshot, draft_plan),
+    )
+    if recovery_week:
+        verdict = _check_scheduled_tests_present(
+            sessions, macro, verdict, weaknesses, edits
+        )
         for session in quality_sessions:
             verdict = _bump_verdict(verdict, "revise")
             weaknesses.append(
@@ -225,23 +473,42 @@ def run(
                     }
                 )
 
-    ordered_key_days = [
-        DAY_NAMES.index(session["day"])
-        for session in key_sessions
-        if session["day"] in DAY_NAMES
-    ]
-    ordered_key_days.sort()
-    if any(b - a == 1 for a, b in zip(ordered_key_days, ordered_key_days[1:])):
+    verdict = _check_threshold_tests(
+        sessions, snapshot, macro, performance, verdict, strengths, weaknesses
+    )
+
+    key_by_day: dict[int, list[dict[str, Any]]] = defaultdict(list)
+    for session in key_sessions:
+        if session["day"] in DAY_NAMES and not _threshold_test(session):
+            key_by_day[DAY_NAMES.index(session["day"])].append(session)
+    ordered_key_days = sorted(key_by_day)
+    deliberate_long_pair = False
+    stacked = False
+    for first, second in zip(ordered_key_days, ordered_key_days[1:]):
+        if second - first != 1:
+            continue
+        pair = key_by_day[first] + key_by_day[second]
+        # A planned long ride + long run weekend (or trail back-to-back) is a
+        # deliberate durability pair, not stacking, when both stay aerobic.
+        if (
+            all(_is_long_durability(session) for session in pair)
+            and performance.get("readiness_status") == "green"
+            and not recovery_week
+            and not _is_taper(macro)
+        ):
+            deliberate_long_pair = True
+            continue
+        stacked = True
+    if stacked:
         verdict = _bump_verdict(verdict, "revise lightly")
         weaknesses.append(
             "Key sessions are stacked on back-to-back days, which is harder to execute well in real life."
         )
-
-    if len(quality_sessions) >= 3 and macro.get("week_classification") != "build":
-        verdict = _bump_verdict(verdict, "revise lightly")
-        weaknesses.append(
-            "There is too much moderate-to-hard density for a non-build week."
+    elif deliberate_long_pair:
+        strengths.append(
+            "The back-to-back long sessions are a deliberate aerobic durability pair, with no quality inside them."
         )
+
 
     preferred_long_ride_day = constraints.get("preferred_long_ride_day")
     long_ride = next(
@@ -297,7 +564,11 @@ def run(
 
     if prior_plan_adherence.get("status") == "available":
         strengths.append(prior_plan_adherence["summary"])
-        if prior_plan_adherence.get("adherence_score", 1.0) < 0.7:
+        if _health_explained_misses(snapshot):
+            info.append(
+                "Last week's misses were illness/injury, not unreliability; they do not lower confidence in the athlete."
+            )
+        elif prior_plan_adherence.get("adherence_score", 1.0) < 0.7:
             verdict = _bump_verdict(verdict, "revise lightly")
             weaknesses.append(
                 "Recent adherence was shaky enough that this week should stay highly executable and uncluttered."
@@ -322,11 +593,8 @@ def run(
     )
     if (
         strength_session
-        and (
-            performance.get("readiness_status") != "green"
-            or macro.get("week_classification") in {"recovery", "absorb"}
-        )
-        and int(strength_session.get("duration_min", 0) or 0) > 25
+        and _light_strength_week(snapshot, macro, performance)
+        and int(strength_session.get("duration_min", 0) or 0) > LIGHT_STRENGTH_MAX_MIN
     ):
         verdict = _bump_verdict(verdict, "revise lightly")
         weaknesses.append(
@@ -339,7 +607,7 @@ def run(
                 "action": "reduce_strength_load",
                 "summary": "Convert the gym session into short activation work so it does not steal quality from the weekend.",
                 "new_session_name": "Activation Strength",
-                "new_duration_min": 25,
+                "new_duration_min": LIGHT_STRENGTH_MAX_MIN,
             }
         )
 
@@ -366,4 +634,5 @@ def run(
         "proposed_edits": deduped_edits,
         "simpler_alternative": simpler_alternative,
         "verdict": verdict,
+        "info": list(dict.fromkeys(info)),
     }

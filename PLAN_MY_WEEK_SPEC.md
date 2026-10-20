@@ -26,6 +26,10 @@ Default behavior:
 - if a week is specified, use that requested week explicitly
 - the system must resolve one concrete planning date before fetching data
 
+The planned week starts on the Monday on or after `planning_date`. For `plan my next week`, set `planning_date` to today: on a Monday that plans the current week, on any other day (a Tuesday, a Sunday) it plans the next Monday-Sunday week. Setting `planning_date` to a future Monday also works.
+
+Evidence always runs up to the data date (`data_as_of` in the snapshot): the planning date, or the fetch day when the planning date lies ahead. When planning mid-week, the running week counts as partial (not a finished low week), and sessions still to come in that week's approved plan are listed as `upcoming_sessions` instead of being counted as missed. `lead_days` is the number of days between the data date and the start of the planned week.
+
 ## Mandatory live-first sequence
 
 For production planning in live mode, the system must follow this order:
@@ -51,14 +55,17 @@ Fresh data is mandatory before drafting a live week.
 The prepared snapshot should expose at least:
 
 - requested planning date
+- data date (`data_as_of`) and `lead_days`
 - fetch timestamp
 - latest activity local date
 - latest wellness date
 
 The planner must block live drafting if either of these is true:
 
-- the latest activity date is more than 1 day behind the planning date
-- the latest wellness date is more than 1 day behind the planning date
+- the latest activity date is more than 1 day behind the data date
+- the latest wellness date is more than 1 day behind the data date
+
+The data date is today when planning ahead, so planning next week on a Tuesday is not stale by itself. When `lead_days` is large, say so in the summary and expect a possible `adjust-week` once the rest of the running week is in.
 
 If the snapshot is stale, the system must say so clearly and stop before planning, unless the athlete explicitly asks to proceed with stale data.
 
@@ -89,6 +96,19 @@ It should ask for:
 - coming-week constraints such as travel, time caps, pool access, and days that cannot be doubled
 
 It should not ask the athlete to manually list completed workouts if live activity data has already been fetched.
+
+It should also ask for:
+
+- a red-flag screen (chest pain, palpitations, disproportionate breathlessness, dizziness, fever) and illness symptoms
+- pain scores 0-10 per body part
+- subjective sleep quality
+- reasons for missed sessions
+- available hours this week, which bind as a cap
+- life events in the next 2-4 weeks
+- a race debrief when a race happened
+- open decisions carried over from earlier weeks
+
+The answers are recorded with `record-checkin`, which re-normalizes the snapshot before drafting. A blank answer is unknown, never "fine".
 
 Recommended interaction pattern:
 

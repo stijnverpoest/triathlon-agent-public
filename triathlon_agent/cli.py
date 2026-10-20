@@ -4,7 +4,15 @@ import argparse
 import sys
 
 from .config import load_config
-from .workflow import approve_run, finalize_run, plan_week, prepare_run
+from .utils import read_json
+from .workflow import (
+    adjust_week,
+    approve_run,
+    finalize_run,
+    plan_week,
+    prepare_run,
+    record_checkin,
+)
 
 
 def _rewrite_phrase_args(argv: list[str]) -> list[str]:
@@ -53,6 +61,28 @@ def build_parser() -> argparse.ArgumentParser:
     )
     finalize_parser.add_argument("run_dir")
     finalize_parser.add_argument("--auto-approve", action="store_true")
+    finalize_parser.add_argument(
+        "--allow-missing-checkin",
+        action="store_true",
+        help="Finalize a live run even though record-checkin was never run.",
+    )
+
+    checkin_parser = subparsers.add_parser(
+        "record-checkin",
+        help="Merge the athlete's post-fetch check-in answers into a prepared run and re-normalize it",
+    )
+    checkin_parser.add_argument("run_dir")
+    checkin_parser.add_argument("answers", help="JSON file with check-in fields to merge")
+
+    adjust_parser = subparsers.add_parser(
+        "adjust-week",
+        help="Re-plan the remaining days of an approved week in a new linked run",
+    )
+    adjust_parser.add_argument("run_dir", help="The approved run to adjust")
+    adjust_parser.add_argument("--from", dest="from_date", required=True, help="YYYY-MM-DD")
+    adjust_parser.add_argument("--reason", required=True)
+    adjust_parser.add_argument("--mode", choices=["mock", "live"], default=None)
+    adjust_parser.add_argument("--output-dir")
 
     approve_parser = subparsers.add_parser(
         "approve", help="Approve a draft and push workouts"
@@ -60,6 +90,11 @@ def build_parser() -> argparse.ArgumentParser:
     approve_parser.add_argument("run_dir")
     approve_parser.add_argument("--mode", choices=["mock", "live"], default=None)
     approve_parser.add_argument("--dry-run", action="store_true")
+    approve_parser.add_argument(
+        "--overwrite-edited",
+        action="store_true",
+        help="Also overwrite calendar events the athlete edited or moved since the last push.",
+    )
 
     return parser
 
@@ -111,21 +146,91 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Normalized snapshot: {result['normalized_snapshot_path']}")
         print(f"Run context: {result['run_context_path']}")
         print(f"Approval file: {result['approval_path']}")
+        print(
+            "Next: ask the post-fetch check-in, then "
+            f"`python -m triathlon_agent.cli record-checkin {result['run_dir']} <answers.json>`"
+        )
+        return 0
+
+    if args.command == "record-checkin":
+        try:
+            result = record_checkin(args.run_dir, read_json(args.answers))
+        except ValueError as exc:
+            print(str(exc), file=sys.stderr)
+            return 2
+        print(f"Check-in recorded: {result['weekly_checkin_path']}")
+        print(f"Answered fields: {', '.join(result['answered_fields'])}")
+        print(f"Normalized snapshot rebuilt: {result['normalized_snapshot_path']}")
+        return 0
+
+    if args.command == "adjust-week":
+        try:
+            result = adjust_week(
+                config,
+                args.run_dir,
+                from_date=args.from_date,
+                reason=args.reason,
+                output_dir=args.output_dir,
+            )
+        except ValueError as exc:
+            print(str(exc), file=sys.stderr)
+            return 2
+        print(f"Adjustment run created: {result['run_dir']}")
+        for row in result["done_so_far"]:
+            print(
+                f"  {row['date']} {row['session_name']}: {row['status']} "
+                f"({row['actual_min']}/{row['planned_min']} min)"
+            )
+        print(f"Remaining sessions to revise: {result['remaining_sessions']}")
+        print(f"Adjustment context: {result['adjustment_context_path']}")
         return 0
 
     if args.command == "finalize-run":
-        result = finalize_run(args.run_dir, auto_approve=args.auto_approve)
+        try:
+            result = finalize_run(
+                args.run_dir,
+                auto_approve=args.auto_approve,
+                allow_missing_checkin=args.allow_missing_checkin,
+            )
+        except ValueError as exc:
+            print(str(exc), file=sys.stderr)
+            return 2
         print(f"Run finalized: {result['run_dir']}")
+        audit = result.get("coaching_audit") or {}
+        print(f"Coaching audit: {audit.get('status', 'n/a')}")
+        for finding in audit.get("findings", []):
+            print(f"  WARNING [{finding['code']}]: {finding['message']}")
         print(f"Report: {result['report_path']}")
         print(f"Dashboard: {result['dashboard_path']}")
         print(f"Approval status: {result['approval_status']}")
         return 0
 
     if args.command == "approve":
-        result = approve_run(config, args.run_dir, dry_run=args.dry_run)
+        try:
+            result = approve_run(
+                config,
+                args.run_dir,
+                dry_run=args.dry_run,
+                overwrite_edited=args.overwrite_edited,
+            )
+        except ValueError as exc:
+            print(str(exc), file=sys.stderr)
+            return 2
+        for event in result.get("edited_events", []):
+            verb = "OVERWRITTEN" if result.get("edited_events_overwritten") else "SKIPPED"
+            print(
+                f"  {verb} event you edited since the last push: {event['date']} {event['name']} "
+                f"({', '.join(event['changes'])})"
+            )
         print(f"Compiled workouts: {result['compiled_workouts']}")
         print(f"Compiled notes: {result['compiled_notes']}")
         print(f"Push result: {result['push_result']}")
+        for orphan in result.get("orphan_events", []):
+            print(
+                f"  NOTE superseded coach event still on the calendar: "
+                f"{orphan['date']} {orphan['name']} (id {orphan['id']})"
+            )
+        print(f"Threshold update result: {result['threshold_update_result']}")
         return 0
 
     parser.print_help()

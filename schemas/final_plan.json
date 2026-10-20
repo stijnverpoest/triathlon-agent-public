@@ -26,23 +26,310 @@
   "properties": {
     "athlete_brief": {
       "type": "object",
-      "required": ["week_theme", "why_this_week", "protect_if_busy", "watch_for", "fallback_plan", "tone"]
+      "properties": {
+        "protect_if_busy": {
+          "type": "array"
+        },
+        "watch_for": {
+          "type": "array"
+        }
+      },
+      "required": [
+        "week_theme",
+        "why_this_week",
+        "protect_if_busy",
+        "watch_for",
+        "fallback_plan",
+        "tone"
+      ]
     },
-    "coach_note": {"type": "string"},
+    "coach_note": {
+      "type": "string"
+    },
+    "phase_alignment_check": {
+      "type": "object",
+      "required": [
+        "alignment_status",
+        "week_fit_summary",
+        "supporting_signals"
+      ]
+    },
+    "training_philosophy_check": {
+      "type": "object",
+      "required": [
+        "overall_status",
+        "daniels_alignment",
+        "coggan_alignment",
+        "friel_alignment"
+      ]
+    },
+    "changes_vs_prior_week": {
+      "type": "object",
+      "required": [
+        "summary"
+      ]
+    },
+    "validator_adjustments_incorporated": {
+      "type": "array"
+    },
+    "nutrition_summary": {
+      "type": "object",
+      "required": [
+        "week_strategy",
+        "hydration_guidance",
+        "recovery_priorities",
+        "major_concerns"
+      ],
+      "properties": {
+        "daily_notes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "date",
+              "day",
+              "title",
+              "body",
+              "push_to_intervals"
+            ]
+          }
+        }
+      }
+    },
+    "write_back_preview": {
+      "type": "object",
+      "required": [
+        "planned_workouts_to_push",
+        "workout_disciplines"
+      ]
+    },
+    "open_decisions": {
+      "type": "array",
+      "description": "Decisions the athlete still has to make (e.g. race goal, race entry). Rendered prominently in the report and carried into the next run (athlete_state) until answered via the check-in field decision_answers. Race-related questions must name the Intervals race and its date.",
+      "items": {
+        "type": "object",
+        "required": [
+          "question"
+        ],
+        "properties": {
+          "question": {
+            "type": "string"
+          },
+          "due_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "YYYY-MM-DD"
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "default_if_no_answer": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      }
+    },
+    "adjustment": {
+      "type": "object",
+      "description": "Only on adjust-week runs: the plan replaces the remaining days of an approved plan from from_date on.",
+      "required": [
+        "from_date",
+        "reason",
+        "replaces_run"
+      ]
+    },
     "weekly_time_budget": {
       "type": "object",
-      "required": ["target_min", "minimum_effective_min", "maximum_effective_min", "mode", "rationale"]
+      "description": "Head-coach volume decision; reference_min is the athlete's typical week (soft), hard_cap_min the hours given for this week (binding).",
+      "required": [
+        "planned_min",
+        "reference_min",
+        "mode",
+        "rationale"
+      ]
     },
     "weekly_focus_notes": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["date", "day", "title", "body", "push_to_intervals"]
+        "required": [
+          "date",
+          "day",
+          "title",
+          "body",
+          "push_to_intervals"
+        ]
       }
     },
     "sessions": {
       "type": "array",
-      "items": {"$ref": "session.json"}
+      "items": {
+        "$ref": "session.json"
+      }
+    },
+    "threshold_testing": {
+      "type": "object",
+      "description": "Threshold test status, this week's scheduled tests, completed tests since the last record, and proposed Intervals sport-settings updates.",
+      "required": [
+        "status",
+        "scheduled",
+        "deferred",
+        "rationale",
+        "completed_tests",
+        "threshold_updates"
+      ],
+      "properties": {
+        "status": {
+          "type": "object"
+        },
+        "scheduled": {
+          "type": "array"
+        },
+        "deferred": {
+          "type": "array"
+        },
+        "rationale": {
+          "type": "string"
+        },
+        "completed_tests": {
+          "type": "array"
+        },
+        "threshold_updates": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "discipline",
+              "sport",
+              "sport_settings_id",
+              "field",
+              "current",
+              "proposed",
+              "apply"
+            ],
+            "properties": {
+              "discipline": {
+                "enum": [
+                  "bike",
+                  "run"
+                ]
+              },
+              "sport": {
+                "type": "string"
+              },
+              "sport_settings_id": {
+                "type": [
+                  "integer",
+                  "string",
+                  "null"
+                ]
+              },
+              "field": {
+                "enum": [
+                  "ftp",
+                  "lthr",
+                  "threshold_pace"
+                ]
+              },
+              "current": {},
+              "proposed": {
+                "description": "Value in Intervals sport-settings units (threshold_pace in m/s)."
+              },
+              "delta_pct": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "confidence": {
+                "enum": [
+                  "high",
+                  "medium",
+                  "low"
+                ]
+              },
+              "apply": {
+                "type": "boolean",
+                "description": "Only true updates are pushed to Intervals sport settings after approval."
+              },
+              "apply_reason": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "coaching_audit": {
+      "type": "object",
+      "description": "Written by finalize-run (triathlon_agent/plan_audit.py): deterministic check of the plan against training_intensity_doctrine.md. Warns, never blocks.",
+      "properties": {
+        "status": {
+          "enum": [
+            "pass",
+            "warn"
+          ]
+        },
+        "quality_session_count": {
+          "type": "integer"
+        },
+        "max_quality_sessions": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "planned_intensity_pct": {
+          "type": "number"
+        },
+        "findings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "code",
+              "message"
+            ]
+          }
+        }
+      }
+    },
+    "readiness_status": {
+      "enum": [
+        "green",
+        "yellow",
+        "red"
+      ]
+    },
+    "macro_cycle_decision": {
+      "type": "object",
+      "required": [
+        "phase",
+        "classification",
+        "rationale",
+        "friel_block_week",
+        "friel_cycle_type",
+        "phase_focus"
+      ],
+      "properties": {
+        "phase": {
+          "enum": [
+            "base",
+            "build",
+            "race_specific",
+            "taper",
+            "transition"
+          ]
+        }
+      }
     }
   }
 }

@@ -16,6 +16,105 @@
     "rationale"
   ],
   "properties": {
-    "agent": {"const": "macro_coach"}
+    "agent": {
+      "const": "macro_coach"
+    },
+    "week_classification": {
+      "type": "string",
+      "description": "build, absorb, load, recovery, sharpening, taper, race_week, transition holiday or re_entry (holiday = at least 4 days of an Intervals HOLIDAY event in the planned week)."
+    },
+    "friel_cycle_type": {
+      "enum": [
+        "load",
+        "recovery",
+        "taper",
+        "maintenance"
+      ],
+      "description": "maintenance = holiday week: light, low structure, does not reset the block."
+    },
+    "macro_phase": {
+      "enum": [
+        "base",
+        "build",
+        "race_specific",
+        "taper",
+        "transition"
+      ],
+      "description": "transition = easy, unstructured days after a completed A/B race."
+    },
+    "threshold_tests": {
+      "type": "object",
+      "description": "Friel rest & test decision. Test in a recovery week (or block week 1 right after one) only a discipline that is due and relevant to the A-race; never in a return-from-break week.",
+      "required": [
+        "scheduled",
+        "deferred",
+        "rationale"
+      ],
+      "properties": {
+        "scheduled": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "discipline",
+              "protocol",
+              "reason"
+            ],
+            "properties": {
+              "discipline": {
+                "enum": [
+                  "bike",
+                  "run"
+                ]
+              },
+              "protocol": {
+                "enum": [
+                  "coggan_20",
+                  "friel_30",
+                  "friel_30_run"
+                ]
+              },
+              "reason": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "deferred": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "discipline",
+              "reason"
+            ]
+          }
+        },
+        "rationale": {
+          "type": "string"
+        }
+      }
+    },
+    "block_rhythm": {
+      "type": "string",
+      "description": "3:1 by default; 2:1 after illness, a break, overreaching markers or a daily-signal alert."
+    },
+    "block_rhythm_reasons": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "season_checkpoints": {
+      "type": "array",
+      "description": "B/C races from the Intervals calendar as checkpoints toward the A-race.",
+      "items": {
+        "type": "object"
+      }
+    },
+    "return_from_break": {
+      "type": "boolean",
+      "description": "True when training_load.return_from_break.status is returning: a re-entry week, not week N of the old block."
+    }
   }
 }

@@ -12,9 +12,160 @@
     "constraints",
     "load_recommendation",
     "baseline_sources",
+    "underload",
+    "intensity_allowance",
     "missing_data"
   ],
   "properties": {
-    "agent": {"const": "performance_doctor"}
+    "agent": {
+      "const": "performance_doctor"
+    },
+    "health_events": {
+      "type": "object",
+      "description": "Recent SICK / INJURED notes from the Intervals calendar and how they shaped readiness.",
+      "properties": {
+        "status": {
+          "enum": [
+            "none",
+            "recent",
+            "returning",
+            "acute"
+          ]
+        },
+        "days_since_end": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "events": {
+          "type": "array"
+        },
+        "return_protocol": {
+          "enum": [
+            "standard",
+            "extended",
+            null
+          ],
+          "description": "extended = illness of 7+ days or covid/flu/fever: staged return-to-play."
+        }
+      }
+    },
+    "red_flags": {
+      "type": "array",
+      "description": "Medical red flags (chest pain/tightness, palpitations, disproportionate breathlessness, dizziness/fainting, fever, below-the-neck illness) from the check-in, its structured red_flags/illness_symptoms fields and Intervals activity notes. Any entry forces red readiness, rest or walking only and a see-a-doctor message.",
+      "items": {
+        "type": "object",
+        "required": ["category", "source"],
+        "properties": {
+          "category": {"type": "string"},
+          "label": {"type": "string"},
+          "source": {"type": "string"},
+          "excerpt": {"type": "string"}
+        }
+      }
+    },
+    "training_clearance": {
+      "enum": ["normal", "easy_only", "no_training_see_doctor"],
+      "description": "easy_only = above-the-neck symptoms (neck check); no_training_see_doctor = any red flag, fever or below-the-neck illness."
+    },
+    "no_impact_areas": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "Body parts with a check-in pain score of 5/10 or more: no impact loading on that area this week."
+    },
+    "energy_availability_concern": {
+      "type": "object",
+      "description": "Weight trend / low-energy-availability concern passed to the nutritionist.",
+      "properties": {
+        "flag": {"type": "boolean"},
+        "weight_change_kg_28d": {"type": ["number", "null"]},
+        "rationale": {"type": "string"}
+      }
+    },
+    "return_from_break": {
+      "type": "object",
+      "description": "Echo of normalized_snapshot.training_load.return_from_break as interpreted by the doctor."
+    },
+    "positive_findings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Signals that earned readiness points back (HRV above band, RHR below baseline, high subjective readiness, quality sessions felt strong)."
+    },
+    "underload": {
+      "type": "object",
+      "description": "Underload assessment from normalized_snapshot.training_load.underload, as interpreted by the doctor.",
+      "required": [
+        "status",
+        "markers",
+        "recommendation"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "detected",
+            "watch",
+            "explained",
+            "explained_physiological",
+            "not_detected"
+          ]
+        },
+        "markers": {
+          "type": "array"
+        },
+        "recommendation": {
+          "type": "string"
+        }
+      }
+    },
+    "intensity_allowance": {
+      "type": "object",
+      "description": "Ceiling of genuine quality sessions readiness supports this week; the head coach decides the actual number.",
+      "required": [
+        "hrv_gate",
+        "extra_intensity_allowed",
+        "max_quality_sessions",
+        "rationale"
+      ],
+      "properties": {
+        "hrv_gate": {
+          "enum": [
+            "above_normal",
+            "normal",
+            "suppressed",
+            "stale",
+            "insufficient_data"
+          ]
+        },
+        "extra_intensity_allowed": {
+          "type": "boolean"
+        },
+        "max_quality_sessions": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4
+        },
+        "rationale": {
+          "type": "string"
+        }
+      }
+    },
+    "readiness_status": {
+      "enum": [
+        "green",
+        "yellow",
+        "red"
+      ],
+      "description": "Traffic light. Never 'amber': use 'yellow'."
+    },
+    "load_recommendation": {
+      "enum": [
+        "increase",
+        "hold",
+        "reduce"
+      ]
+    }
   }
 }

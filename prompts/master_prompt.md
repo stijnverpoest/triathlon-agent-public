@@ -41,7 +41,7 @@ python3 -m triathlon_agent.cli prepare-run --mode <mock|live> --athlete-profile 
 
 4. Summarize what actually happened last week from Intervals activities and wellness before you ask questions.
 
-5. Ask only for subjective feedback and coming-week constraints that Intervals cannot know. Do not ask the athlete to manually list completed workouts if live data is already available.
+5. Ask only for subjective feedback and coming-week constraints that Intervals cannot know. Do not ask the athlete to manually list completed workouts if live data is already available. Record the answers with `python3 -m triathlon_agent.cli record-checkin runs/<run_id> <answers.json>` and re-read the snapshot before drafting.
 
 6. Write specialist outputs to:
 
@@ -78,6 +78,8 @@ python3 -m triathlon_agent.cli approve runs/<run_id> --mode <mock|live>
 - `jack_daniels_run_doctrine.md`
 - `andrew_coggan_bike_doctrine.md`
 - `joe_friel_periodization_doctrine.md`
+- `threshold_testing_doctrine.md`
+- `training_intensity_doctrine.md`
 - `orchestrator.md`
 - `performance_doctor.md`
 - `macro_coach.md`
@@ -141,7 +143,7 @@ Also load these schema files before writing artifacts:
 
 ## Non-negotiables
 
-- Safety and adherence outrank cleverness.
+- Safety and adherence outrank cleverness; within safety, performance outranks comfort. Under-training is a performance risk, not a safe default.
 - Live `plan my week` starts with a fresh Intervals fetch, not with chat assumptions.
 - Explain why the week exists.
 - Keep the week executable.
@@ -151,6 +153,12 @@ Also load these schema files before writing artifacts:
 - Use Daniels taxonomy for run session intent.
 - Use Coggan levels plus IF/TSS expectations for bike session intent.
 - Use Friel block logic for phase and recovery-week structure.
+- Use `training_intensity_doctrine.md` for intensity distribution (pyramidal), the number of quality sessions, HRV gating, underload, and progression ladders.
+- The profile's typical hours are a reference; hours the athlete gives for this week, explicit day caps and access constraints bind.
+- Progress one thing at a time: at most two progressing elements per week, at most one of them run-impact related.
+- Red flags (chest pain, palpitations, disproportionate breathlessness, dizziness, fever) stop training and send the athlete to a doctor.
+- After 7+ days off, follow `training_load.return_from_break`; never resume the old block where it stopped.
+- A blank check-in answer or stale wellness signal is unknown, never "fine".
 - Treat weekday preferences as soft unless they are facility or access constraints.
 - Tuesday and Thursday swims should be pushed to Intervals as swim events even if they only contain a title or minimal notes.
 - Persist every specialist output as a file before moving to the next agent.

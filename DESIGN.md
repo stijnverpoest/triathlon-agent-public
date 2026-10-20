@@ -37,7 +37,14 @@ The prompt files are the production reasoning layer, while the local Python impl
 - local files: athlete profile, weekly check-in, optional supplemental race notes
 - Intervals live or mock data: profile, sport settings, wellness, activities, events
 
-Race events are primarily sourced from the Intervals calendar. The local race calendar file is optional and is only used to enrich or override race notes when needed.
+Races are sourced only from the Intervals calendar (RACE events). The local race calendar file is optional and can only fill missing notes on a race that is already on the Intervals calendar; it never adds a race or overrides its date, name, priority or distance. `athlete_state.json` keeps history and long-term memory (weekly actuals, race results, injury log, open decisions), never the priority race.
+
+## Feedback loop
+
+- `prepare-run` fetches and normalizes; `record-checkin` merges the athlete's answers and re-normalizes from the stored fetch
+- `finalize-run` validates against `schemas/*.json` (nested required keys), runs the coaching audit, and binds approval to the plan's sha256
+- `approve` skips events the athlete edited in Intervals since the last push and records weekly actuals in `athlete_state.json`
+- `adjust-week` re-plans the remaining days of an approved week in a linked run
 
 Wellness baselines for HRV, resting HR, and sleep are derived from Intervals history whenever enough data exists. Manual baseline fields are optional fallback overrides only.
 

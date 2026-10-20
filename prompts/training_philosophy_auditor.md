@@ -7,6 +7,13 @@ Use these doctrine files as the standard:
 - `jack_daniels_run_doctrine.md`
 - `andrew_coggan_bike_doctrine.md`
 - `joe_friel_periodization_doctrine.md`
+- `training_intensity_doctrine.md`
+
+Check explicitly:
+
+- the week is pyramidal (about 75-80% low, 12-20% moderate, 3-8% high)
+- the quality count fits the readiness allowance
+- every quality session sits on the right ladder rung
 
 ## Review
 

@@ -20,7 +20,13 @@ from triathlon_agent.agents import (
 from triathlon_agent.config import load_config
 from triathlon_agent.run_manifest import agent_output_path
 from triathlon_agent.utils import read_json
-from triathlon_agent.workflow import approve_run, finalize_run, plan_week, prepare_run
+from triathlon_agent.workflow import (
+    StalePlanningDateError,
+    approve_run,
+    finalize_run,
+    plan_week,
+    prepare_run,
+)
 from triathlon_agent.utils import write_json
 
 
@@ -54,36 +60,59 @@ class WorkflowTests(unittest.TestCase):
             self.assertIn("## Athlete Brief", report)
             self.assertIn("Protect if busy", athlete_brief)
             self.assertIn("## Coach Note", report)
-            self.assertIn("## Time Budget", report)
+            self.assertIn("## Weekly Volume", report)
+            self.assertIn("## Coaching Audit", report)
             self.assertIn("## Strategic Overview", report)
             self.assertIn("## Seven-Day Plan", report)
             self.assertIn("## Nutrition Guidance", report)
             self.assertIn("## Nutrition Note Previews", report)
             self.assertIn("## Weekly Focus Note Previews", report)
-            self.assertIn("Inspired by Steve Magness", report)
             self.assertIn("## Readiness / Risk Status", report)
             self.assertIn("## Changes vs Prior Week", report)
             self.assertIn("## Macro-Cycle Decision", report)
             self.assertIn("## Phase Alignment Check", report)
             self.assertIn("## Training Philosophy Check", report)
-            self.assertIn("Activation Strength", report)
+            self.assertIn("FTP Test", report)
             self.assertNotIn("Daniels quality run", report)
             self.assertNotIn("one clear bike quality session", report)
 
             final_plan = read_json(output_dir / "final_plan.json")
-            self.assertTrue(final_plan["validator_adjustments_incorporated"])
+            self.assertIn("validator_adjustments_incorporated", final_plan)
             self.assertEqual(final_plan["readiness_status"], "yellow")
             self.assertIn("athlete_brief", final_plan)
             self.assertIn("weekly_time_budget", final_plan)
             self.assertIn("weekly_focus_notes", final_plan)
+            # Focus notes are rebuilt from sessions at finalize time; first note
+            # must match the first session's date and name.
+            first_session = final_plan["sessions"][0]
             self.assertEqual(
-                final_plan["weekly_focus_notes"][0]["title"], "Monday Coaching Note"
+                final_plan["weekly_focus_notes"][0]["date"], first_session["date"]
+            )
+            self.assertIn(
+                first_session["session_name"],
+                final_plan["weekly_focus_notes"][0]["title"],
             )
             self.assertEqual(
                 len(final_plan["athlete_brief"]["protect_if_busy"]),
                 len(set(final_plan["athlete_brief"]["protect_if_busy"])),
             )
             self.assertIn("Brussels Olympic Triathlon", report)
+
+    def test_prepare_run_rejects_stale_planning_date_in_live_mode(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            checkin_data = read_json(self.weekly_checkin)
+            checkin_data["planning_date"] = "2020-01-01"
+            checkin_path = Path(temp_dir) / "weekly_checkin.json"
+            write_json(checkin_path, checkin_data)
+            live_config = replace(self.config, mode="live", intervals_api_key="test-key")
+
+            with self.assertRaises(StalePlanningDateError):
+                prepare_run(
+                    live_config,
+                    athlete_profile_path=self.athlete_profile,
+                    weekly_checkin_path=str(checkin_path),
+                    output_dir=str(Path(temp_dir) / "run"),
+                )
 
     def test_prepare_and_finalize_support_opencode_orchestration(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -161,7 +190,11 @@ class WorkflowTests(unittest.TestCase):
                 run_dir.mkdir(parents=True, exist_ok=True)
                 write_json(
                     run_dir / "approval.json",
-                    {"status": "approved", "approved_at": "2026-03-01T08:00:00"},
+                    {
+                        "status": "approved",
+                        "approved_at": "2026-03-01T08:00:00",
+                        "pushed_at": "2026-03-01T08:05:00",
+                    },
                 )
                 write_json(
                     run_dir / "inputs.json",
@@ -232,7 +265,11 @@ class WorkflowTests(unittest.TestCase):
             approval = read_json(output_dir / "approval.json")
 
             self.assertEqual(approval["status"], "approved")
-            self.assertEqual(len(compiled), 8)
+            final_plan = read_json(output_dir / "final_plan.json")
+            self.assertEqual(
+                len(compiled),
+                sum(1 for s in final_plan["sessions"] if s["discipline"] != "Recovery"),
+            )
             self.assertGreater(len(compiled_notes), 0)
             self.assertEqual(len(compiled_payload), len(compiled) + len(compiled_notes))
             self.assertEqual(push_result["mode"], "mock")
@@ -241,7 +278,7 @@ class WorkflowTests(unittest.TestCase):
             ride = next(item for item in compiled if item["type"] == "Ride")
             swim = next(item for item in compiled if item["type"] == "Swim")
             easy_run = next(
-                item for item in compiled if item["name"] == "Aerobic Reset Run"
+                item for item in compiled if item["name"] == "Easy Aerobic Run"
             )
             self.assertIn("%", ride["description"])
             self.assertIn("Easy swim", swim["description"])

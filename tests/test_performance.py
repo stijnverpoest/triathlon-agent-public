@@ -132,5 +132,105 @@ class PerformanceDoctorTests(unittest.TestCase):
         )
 
 
+    def _green_snapshot(self) -> dict:
+        return {
+            "athlete_profile": {"name": "Test Athlete"},
+            "weekly_checkin": {
+                "pain_or_niggles": "",
+                "missed_sessions": [],
+                "unexpected_fatigue": "",
+                "subjective_readiness": 8,
+                "current_motivation": 8,
+            },
+            "planning_constraints": {},
+            "prior_plan_adherence": {"status": "missing"},
+            "athlete_memory": {"status": "missing"},
+            "latest_wellness": {"fatigue": 2, "soreness": 1},
+            "load_change_pct": 2.0,
+            "recent_week_load": 400,
+            "prior_week_load": 395,
+            "avg_sleep_hours": 7.8,
+            "avg_hrv": 68.0,
+            "avg_resting_hr": 44.0,
+            "weekly_windows": [{"activities": []}],
+            "derived_baselines": {
+                "hrv": {"baseline": 66.0, "acute": 68.0, "delta": 2.0, "delta_pct": 3.0, "confidence": "high"},
+                "resting_hr": {"baseline": 44.0, "acute": 44.0, "delta": 0.0, "delta_pct": 0.0, "confidence": "high"},
+                "sleep_hours": {"baseline": 7.6, "acute": 7.8, "delta": 0.2, "delta_pct": 2.6, "confidence": "high"},
+            },
+        }
+
+    def _sick_event(self, days_since_end: int, ongoing: bool = False) -> dict:
+        return {
+            "kind": "sick",
+            "name": "Sick",
+            "description": "Cold, sore throat",
+            "start_date": "2026-03-25",
+            "end_date": "2026-03-27",
+            "days_since_end": days_since_end,
+            "ongoing": ongoing,
+        }
+
+    def test_green_snapshot_without_health_events_stays_green(self) -> None:
+        result = performance_doctor.run(self._green_snapshot())
+
+        self.assertEqual(result["readiness_status"], "green")
+        self.assertEqual(result["health_events"]["status"], "none")
+
+    def test_ongoing_sickness_forces_red_and_reduce(self) -> None:
+        snapshot = self._green_snapshot()
+        snapshot["recent_health_events"] = [self._sick_event(0, ongoing=True)]
+
+        result = performance_doctor.run(snapshot)
+
+        self.assertEqual(result["readiness_status"], "red")
+        self.assertEqual(result["load_recommendation"], "reduce")
+        self.assertEqual(result["health_events"]["status"], "acute")
+        self.assertIn("recent_illness", result["fatigue_markers"])
+        self.assertTrue(any("symptom-free" in item for item in result["constraints"]))
+        self.assertTrue(any("Cold, sore throat" in item for item in result["objective_findings"]))
+
+    def test_sickness_five_days_ago_caps_at_yellow_with_gradual_return(self) -> None:
+        snapshot = self._green_snapshot()
+        snapshot["recent_health_events"] = [self._sick_event(5)]
+
+        result = performance_doctor.run(snapshot)
+
+        self.assertEqual(result["readiness_status"], "yellow")
+        self.assertEqual(result["load_recommendation"], "reduce")
+        self.assertEqual(result["health_events"]["status"], "returning")
+        self.assertTrue(any("70%" in item for item in result["constraints"]))
+
+    def test_sickness_ten_days_ago_holds_load(self) -> None:
+        snapshot = self._green_snapshot()
+        snapshot["recent_health_events"] = [self._sick_event(10)]
+
+        result = performance_doctor.run(snapshot)
+
+        self.assertEqual(result["readiness_status"], "green")
+        self.assertEqual(result["load_recommendation"], "hold")
+        self.assertEqual(result["health_events"]["status"], "recent")
+
+    def test_injury_note_adds_affected_area_constraint(self) -> None:
+        snapshot = self._green_snapshot()
+        snapshot["recent_health_events"] = [
+            {
+                "kind": "injured",
+                "name": "Calf strain",
+                "description": "Left calf",
+                "start_date": "2026-03-26",
+                "end_date": "2026-03-26",
+                "days_since_end": 6,
+                "ongoing": False,
+            }
+        ]
+
+        result = performance_doctor.run(snapshot)
+
+        self.assertEqual(result["readiness_status"], "yellow")
+        self.assertIn("recent_injury", result["fatigue_markers"])
+        self.assertTrue(any("Calf strain" in item for item in result["constraints"]))
+
+
 if __name__ == "__main__":
     unittest.main()

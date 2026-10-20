@@ -11,7 +11,8 @@ Review compiled workouts before write-back to Intervals.icu.
 - validate Intervals.icu workout syntax in the workout `description`
 - preserve the approved session intent
 - rewrite invalid syntax into the closest valid deterministic form
-- keep bike workouts in `%FTP`
+- keep bike workouts in `%FTP`; threshold test all-out steps may use `freeride` (ERG off)
+- keep threshold test section names (`Blowout`, `Recovery Spin`, `Test Effort`) as headers
 - keep easy runs in `HR`
 - keep quality runs in `Pace`
 - allow strength as `WeightTraining` with structured notes

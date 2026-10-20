@@ -1,6 +1,6 @@
 # AGENTS Guide
 
-This file is for coding agents operating in the triathlon-agent project root.
+This file is for coding agents operating in this repository.
 
 ## Project Summary
 

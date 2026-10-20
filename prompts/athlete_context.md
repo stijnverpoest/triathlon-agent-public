@@ -31,10 +31,22 @@ Baselines for HRV, resting HR, and sleep should be derived from Intervals wellne
 - time caps by day if relevant
 - motivation
 - readiness
-- pain or niggles
+- pain or niggles, plus `pain_scores` (0-10 per body part)
+- illness symptoms and a red-flag screen (chest pain, palpitations, disproportionate breathlessness, dizziness, fever)
+- subjective sleep quality and work stress
+- reasons for missed sessions (illness and travel are not adherence problems)
+- upcoming life events in the next 2-4 weeks
+- a race debrief when a race happened
+- available hours this week, which bind as a cap
 - athlete notes
 
-## Race calendar should contain
+A blank answer is unknown, never "fine".
+
+## Races come from Intervals
+
+The Intervals.icu calendar (RACE_A / RACE_B / RACE_C events) is the only source of races, priorities and dates. The optional local race calendar can only add notes to a race that is already on the Intervals calendar. It never adds a race or changes its date, name or priority. The profile's goal text is background, not a race list.
+
+## Optional local race notes may contain
 
 - race name
 - date

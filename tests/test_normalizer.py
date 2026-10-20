@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+from pathlib import Path
 
 from triathlon_agent.normalizer import normalize_snapshot
 from triathlon_agent.utils import read_json
@@ -15,7 +16,7 @@ class NormalizerTests(unittest.TestCase):
                 "resting_hr_baseline": None,
             },
             "weekly_checkin": {
-                "planning_date": "2026-03-08",
+                "planning_date": "2026-02-26",
                 "missed_sessions": [],
                 "unexpected_fatigue": "",
             },
@@ -40,7 +41,7 @@ class NormalizerTests(unittest.TestCase):
             "wellness": wellness,
             "events": [],
             "sport_settings": [],
-            "planning_date": "2026-03-08",
+            "planning_date": "2026-02-26",
         }
 
         snapshot = normalize_snapshot(local_inputs, intervals_data)
@@ -242,6 +243,9 @@ class NormalizerTests(unittest.TestCase):
         self.assertEqual(adherence["pragmatic_completions_count"], 1)
         self.assertEqual(adherence["missed_sessions_count"], 0)
 
+    @unittest.skipUnless(
+        Path("data/athlete_profile.json").exists(), "needs a local data/athlete_profile.json"
+    )
     def test_data_profile_no_longer_marks_tuesday_as_no_bike_day(self) -> None:
         snapshot = normalize_snapshot(
             {
@@ -430,6 +434,83 @@ class NormalizerTests(unittest.TestCase):
             snapshot["recent_session_signatures_by_kind"]["long_ride"],
         )
 
+    def test_session_reviews_carry_elevation_and_flag_hilly_runs(self) -> None:
+        local_inputs = {
+            "athlete_profile": {"name": "Test Athlete"},
+            "weekly_checkin": {
+                "planning_date": "2026-03-08",
+                "missed_sessions": [],
+                "unexpected_fatigue": "",
+            },
+            "race_calendar": {"races": []},
+            "prior_plan_contexts": [
+                {
+                    "source_run": "runs/old-run",
+                    "final_plan": {
+                        "sessions": [
+                            {
+                                "date": "2026-03-02",
+                                "day": "Monday",
+                                "discipline": "Run",
+                                "session_name": "Hilly Long Run",
+                                "duration_min": 70,
+                                "priority": "support",
+                            },
+                            {
+                                "date": "2026-03-04",
+                                "day": "Wednesday",
+                                "discipline": "Run",
+                                "session_name": "Flat Easy Run",
+                                "duration_min": 45,
+                                "priority": "support",
+                            },
+                        ]
+                    },
+                }
+            ],
+        }
+        intervals_data = {
+            "activities": [
+                {
+                    "start_date_local": "2026-03-02T07:00:00",
+                    "type": "Run",
+                    "moving_time": 4200,
+                    "distance": 13000,
+                    "total_elevation_gain": 320,
+                    "icu_training_load": 55,
+                },
+                {
+                    "start_date_local": "2026-03-04T07:00:00",
+                    "type": "Run",
+                    "moving_time": 2700,
+                    "distance": 9000,
+                    "total_elevation_gain": 25,
+                    "icu_training_load": 33,
+                },
+            ],
+            "wellness": [],
+            "events": [],
+            "sport_settings": [],
+            "planning_date": "2026-03-08",
+        }
+
+        snapshot = normalize_snapshot(local_inputs, intervals_data)
+        reviews = {
+            review["session_name"]: review
+            for review in snapshot["prior_plan_adherence"]["session_reviews"]
+        }
+
+        hilly = reviews["Hilly Long Run"]
+        self.assertEqual(hilly["elevation_gain_m"], 320)
+        self.assertEqual(hilly["distance_km"], 13.0)
+        self.assertAlmostEqual(hilly["elevation_per_km"], 24.6, places=1)
+        self.assertIn("climbing", hilly["interpretation"])
+        self.assertIn("tougher", hilly["interpretation"])
+
+        flat = reviews["Flat Easy Run"]
+        self.assertEqual(flat["elevation_gain_m"], 25)
+        self.assertNotIn("climbing", flat["interpretation"])
+
     def test_recent_wellness_averages_skip_missing_numeric_values(self) -> None:
         snapshot = normalize_snapshot(
             {
@@ -472,6 +553,64 @@ class NormalizerTests(unittest.TestCase):
         self.assertEqual(snapshot["avg_hrv"], 66.0)
         self.assertEqual(snapshot["avg_resting_hr"], 44.0)
         self.assertEqual(snapshot["avg_sleep_hours"], 7.75)
+
+    def test_sick_and_injured_events_are_extracted_as_health_events(self) -> None:
+        snapshot = normalize_snapshot(
+            {
+                "athlete_profile": {"name": "Test"},
+                "weekly_checkin": {
+                    "planning_date": "2026-03-30",
+                    "missed_sessions": [],
+                    "unexpected_fatigue": "",
+                },
+                "race_calendar": {"races": []},
+            },
+            {
+                "activities": [],
+                "wellness": [],
+                "events": [
+                    {
+                        "category": "SICK",
+                        "name": "Sick",
+                        "description": "Flu",
+                        "start_date_local": "2026-03-25T00:00:00",
+                        "end_date_local": "2026-03-28T00:00:00",
+                    },
+                    {
+                        "category": "INJURED",
+                        "name": "Calf",
+                        "start_date_local": "2026-03-30T00:00:00",
+                    },
+                    {
+                        "category": "SICK",
+                        "name": "Old cold",
+                        "start_date_local": "2026-03-01T00:00:00",
+                    },
+                    {
+                        "category": "SICK",
+                        "name": "Future",
+                        "start_date_local": "2026-04-05T00:00:00",
+                    },
+                    {
+                        "category": "NOTE",
+                        "name": "Just a note",
+                        "start_date_local": "2026-03-29T00:00:00",
+                    },
+                ],
+                "sport_settings": [],
+                "planning_date": "2026-03-30",
+            },
+        )
+
+        events = snapshot["recent_health_events"]
+        self.assertEqual([item["name"] for item in events], ["Calf", "Sick"])
+        injury, sickness = events
+        self.assertEqual(injury["kind"], "injured")
+        self.assertTrue(injury["ongoing"])
+        self.assertEqual(sickness["end_date"], "2026-03-27")
+        self.assertEqual(sickness["days_since_end"], 3)
+        self.assertFalse(sickness["ongoing"])
+        self.assertEqual(sickness["description"], "Flu")
 
     def test_prior_plan_adherence_allows_two_day_moves_and_trail_runs(self) -> None:
         snapshot = normalize_snapshot(
@@ -564,6 +703,99 @@ class NormalizerTests(unittest.TestCase):
         self.assertIn("Endurance Ride", adherence["moved_sessions"])
         self.assertIn("Pool Swim", adherence["moved_sessions"])
         self.assertEqual(adherence["key_sessions_completed"], 1)
+
+
+
+def _midweek_inputs(planning_date: str) -> tuple[dict, dict]:
+    """Planning from Wednesday 2026-10-07 with data through that day."""
+    wellness = [
+        {
+            "id": f"2026-{month:02d}-{day:02d}",
+            "hrv": 65,
+            "restingHR": 40,
+            "sleepSecs": 8 * 3600,
+            "ctl": 40,
+            "atl": 40,
+        }
+        for month, day in [(9, d) for d in range(1, 31)] + [(10, d) for d in range(1, 8)]
+    ]
+    # Intervals returns projected CTL/ATL rows for future days: no signals.
+    wellness += [
+        {"id": f"2026-10-{day:02d}", "ctl": 38, "atl": 30} for day in range(8, 13)
+    ]
+    activities = [
+        {
+            "id": f"a{day}",
+            "start_date_local": f"2026-10-{day:02d}T07:00:00",
+            "type": "Run",
+            "name": "Easy Run",
+            "moving_time": 1800,
+            "icu_training_load": 25,
+        }
+        for day in (5, 6, 7)
+    ]
+    local_inputs = {
+        "athlete_profile": {"name": "Test"},
+        "weekly_checkin": {
+            "planning_date": planning_date,
+            "missed_sessions": [],
+            "unexpected_fatigue": "",
+        },
+        "race_calendar": {"races": []},
+        "prior_plan_contexts": [
+            {
+                "final_plan": {
+                    "sessions": [
+                        {"date": f"2026-10-{day:02d}", "day": name, "discipline": "Run", "session_name": f"Run {name}", "duration_min": 30}
+                        for day, name in [(5, "Monday"), (6, "Tuesday"), (7, "Wednesday"), (9, "Friday"), (11, "Sunday")]
+                    ]
+                }
+            }
+        ],
+    }
+    intervals_data = {
+        "activities": activities,
+        "wellness": wellness,
+        "events": [],
+        "sport_settings": [],
+        "planning_date": planning_date,
+        "fetch_timestamp": "2026-10-07T08:30:00",
+    }
+    return local_inputs, intervals_data
+
+
+class PlanningAheadTests(unittest.TestCase):
+    def test_future_planning_date_measures_freshness_against_fetch_day(self) -> None:
+        snapshot = normalize_snapshot(*_midweek_inputs("2026-10-12"))
+
+        self.assertEqual(snapshot["planning_date"], "2026-10-12")
+        self.assertEqual(snapshot["week_start"], "2026-10-12")
+        self.assertEqual(snapshot["data_as_of"], "2026-10-07")
+        self.assertEqual(snapshot["lead_days"], 5)
+        self.assertEqual(snapshot["freshness"]["status"], "fresh")
+        self.assertEqual(snapshot["freshness"]["gap_days"], 0)
+        # The running week is still in progress, not a complete low week.
+        self.assertTrue(snapshot["weekly_windows"][-1]["partial"])
+        self.assertEqual(snapshot["recent_week_load"], 75.0)
+
+    def test_midweek_planning_date_plans_next_monday(self) -> None:
+        snapshot = normalize_snapshot(*_midweek_inputs("2026-10-07"))
+
+        self.assertEqual(snapshot["week_start"], "2026-10-12")
+        self.assertEqual(snapshot["data_as_of"], "2026-10-07")
+        self.assertEqual(snapshot["freshness"]["status"], "fresh")
+
+    def test_running_week_sessions_after_data_date_are_upcoming_not_missed(self) -> None:
+        snapshot = normalize_snapshot(*_midweek_inputs("2026-10-12"))
+
+        adherence = snapshot["prior_plan_adherence"]
+        self.assertEqual(adherence["planned_sessions"], 3)
+        self.assertEqual(adherence["missed_sessions_count"], 0)
+        self.assertEqual(
+            [item["date"] for item in adherence["upcoming_sessions"]],
+            ["2026-10-09", "2026-10-11"],
+        )
+        self.assertIn("2 still to come", adherence["summary"])
 
 
 if __name__ == "__main__":

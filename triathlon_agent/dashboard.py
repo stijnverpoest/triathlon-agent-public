@@ -77,20 +77,36 @@ def _review_cards(reviews: list[dict[str, Any]]) -> str:
         tone = (
             "good"
             if "completed" in status
-            else ("warning" if status == "shortened" else "neutral")
+            else ("warning" if status in {"shortened", "missed"} else "neutral")
         )
+        gain = review.get("elevation_gain_m")
+        terrain_bit = ""
+        if gain not in (None, "") and float(gain) > 0:
+            density = review.get("elevation_per_km")
+            density_text = f" (~{density:g} m/km)" if density not in (None, "") else ""
+            terrain_bit = f' | D+ {int(round(float(gain)))} m{density_text}'
         cards.append(
             "".join(
                 [
                     f'<article class="review-card {tone}">',
                     f'<div class="review-top"><strong>{_esc(review.get("session_name"))}</strong><span>{_esc(status.replace("_", " "))}</span></div>',
                     f"<p>{_esc(review.get('interpretation'))}</p>",
-                    f'<p class="small">Planned {int(review.get("planned_minutes", 0) or 0)} min | Actual {_esc(review.get("actual_minutes"))} min | Pragmatic ratio {_esc(review.get("pragmatic_ratio"))}</p>',
+                    f'<p class="small">Planned {int(review.get("planned_minutes", 0) or 0)} min | Actual {_esc(review.get("actual_minutes"))} min | Pragmatic ratio {_esc(review.get("pragmatic_ratio"))}{_esc(terrain_bit)}</p>',
                     "</article>",
                 ]
             )
         )
     return "".join(cards)
+
+
+def _rung_label(session: dict[str, Any]) -> str:
+    progression = session.get("progression") or {}
+    if not progression:
+        return "-"
+    return (
+        f"{progression.get('family')} rung {int(progression.get('rung', 0)) + 1}: "
+        f"{progression.get('time_in_zone_min')}' @ {progression.get('target')}"
+    )
 
 
 def _engine_rows(sessions: list[dict[str, Any]]) -> str:
@@ -104,7 +120,7 @@ def _engine_rows(sessions: list[dict[str, Any]]) -> str:
                     "<tr>",
                     f"<td>{_esc(session.get('session_name'))}</td>",
                     f"<td>{_esc(session.get('training_method', 'General'))}</td>",
-                    f"<td>{_esc(session.get('variant_id', 'custom'))}</td>",
+                    f"<td>{_esc(_rung_label(session))}</td>",
                     f"<td>{_esc(session.get('primary_metric'))}</td>",
                     "</tr>",
                 ]
@@ -131,7 +147,23 @@ def render_dashboard(
         derived.get("sleep_hours", {}), positive_good=True
     )
     weekly_focus = final_plan.get("weekly_focus_notes", [])
-    week_note = weekly_focus[0] if weekly_focus else {}
+    week_note = next(
+        (note for note in weekly_focus if note.get("day") == "Monday"),
+        weekly_focus[0] if weekly_focus else {},
+    )
+    note_label = (
+        f"{week_note['day']} focus note" if week_note.get("day") else "Week focus note"
+    )
+    red_flags = performance.get("red_flags") or []
+    alert_html = ""
+    if red_flags or performance.get("training_clearance") == "no_training_see_doctor":
+        labels = ", ".join(
+            dict.fromkeys(str(flag.get("label") or flag.get("category")) for flag in red_flags)
+        )
+        alert_html = (
+            '<section class="panel alert"><h2>Stop training and see a doctor</h2>'
+            f"<p>Medical red flag reported ({_esc(labels)}). Rest or easy walking only until a doctor has cleared you.</p></section>"
+        )
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -176,6 +208,7 @@ def render_dashboard(
     .session-meta {{ color: var(--muted); }}
     .review-card.good {{ border-color: rgba(52,211,153,0.4); }}
     .review-card.warning {{ border-color: rgba(245,158,11,0.45); }}
+    .alert {{ border-color: rgba(248,113,113,0.7); margin-bottom: 18px; }}
     .review-top {{ display: flex; justify-content: space-between; gap: 12px; margin-bottom: 8px; text-transform: capitalize; }}
     .health-grid {{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }}
     .tone-good {{ color: var(--good); }}
@@ -195,6 +228,7 @@ def render_dashboard(
 </head>
 <body>
   <main>
+    {alert_html}
     <section class="hero">
       <div>
         <div class="badge-row">
@@ -204,12 +238,12 @@ def render_dashboard(
         </div>
         <h1>{_esc(final_plan.get("athlete_brief", {}).get("week_theme", "Weekly plan"))}</h1>
         <p>{_esc(final_plan.get("what_last_week_tells_us"))}</p>
-        <p><strong>Required time this week:</strong> {_esc(minutes_to_hhmm(int(budget.get("target_min", final_plan.get("planned_total_minutes", 0)) or 0)))}. Effective range: {_esc(minutes_to_hhmm(int(budget.get("minimum_effective_min", 0) or 0)))} to {_esc(minutes_to_hhmm(int(budget.get("maximum_effective_min", budget.get("target_min", 0)) or 0)))}.</p>
+        <p><strong>Planned volume this week:</strong> {_esc(minutes_to_hhmm(int(budget.get("planned_min", final_plan.get("planned_total_minutes", 0)) or 0)))}. Typical week (reference, not a cap): {_esc(minutes_to_hhmm(int(budget.get("reference_min", 0) or 0)))}.</p>
         <p class="small">{_esc(budget.get("rationale"))}</p>
       </div>
       <div class="panel">
-        <p class="small">Monday focus note</p>
-        <h2>{_esc(week_note.get("title", "Monday Process Cue"))}</h2>
+        <p class="small">{_esc(note_label)}</p>
+        <h2>{_esc(week_note.get("title", "Weekly Process Cue"))}</h2>
         <p>{_esc(week_note.get("body", "Start calm, protect the important work, and let consistency carry the week."))}</p>
       </div>
     </section>
@@ -258,9 +292,9 @@ def render_dashboard(
 
       <div class="panel span-6">
         <h2>Workout Engine</h2>
-        <p>The planner now exposes the curated session library being used each week, with rotation through protocol-aligned variants instead of improvising from scratch every time.</p>
+        <p>The head coach designs each session itself; every quality session sits on a progression ladder and moves one rung up from the last completed dose.</p>
         <table>
-          <thead><tr><th>Session</th><th>Method</th><th>Variant</th><th>Metric</th></tr></thead>
+          <thead><tr><th>Session</th><th>Method</th><th>Progression</th><th>Metric</th></tr></thead>
           <tbody>{_engine_rows(final_plan.get("sessions", []))}</tbody>
         </table>
       </div>

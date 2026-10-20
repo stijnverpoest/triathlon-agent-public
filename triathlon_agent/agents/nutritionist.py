@@ -3,6 +3,53 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import Any
 
+from ..race_selection import race_bucket
+
+
+# Carbohydrate ladder (g/h) by session length: (upper bound in minutes, range).
+CARB_LADDER: tuple[tuple[float, tuple[int, int]], ...] = (
+    (60, (0, 0)),
+    (90, (30, 45)),
+    (150, (45, 60)),
+    (float("inf"), (60, 90)),
+)
+# Events where the gut must be trained toward 60-90 g/h on long sessions.
+GUT_TRAINING_BUCKETS = {"trail", "ultra_trail", "70.3", "ironman", "marathon"}
+HEAT_NOTE = (
+    "In heat (>25 C) raise fluids to 600-900 ml/h and sodium to 500-1000 mg/h."
+)
+
+
+def carb_range_g_per_h(duration_min: float, *, hard: bool = False) -> tuple[int, int]:
+    """Carbohydrate per hour for a session: none <60', 30-45 to 90', 45-60 to 150', 60-90 beyond.
+
+    Hard sessions of an hour or more move one step up the ladder.
+    """
+    index = next(
+        position
+        for position, (limit, _) in enumerate(CARB_LADDER)
+        if float(duration_min or 0) < limit
+    )
+    if hard and float(duration_min or 0) >= 60:
+        index = min(index + 1, len(CARB_LADDER) - 1)
+    return CARB_LADDER[index][1]
+
+
+def _carb_text(duration: int, hard: bool) -> str:
+    low, high = carb_range_g_per_h(duration, hard=hard)
+    if not high:
+        return "No carbohydrate needed during; water to thirst."
+    return f"Aim for {low}-{high}g carbohydrate/hour, starting in the first 30 minutes"
+
+
+def _gut_training_note(bucket: str, duration: int) -> str:
+    if bucket not in GUT_TRAINING_BUCKETS or duration < 90:
+        return ""
+    return (
+        " Gut training: use race-day products and add 5-10 g/h per week on long sessions "
+        "toward 75-90 g/h by the race-specific block."
+    )
+
 
 def _weight_kg(snapshot: dict[str, Any]) -> float:
     body_metrics = snapshot.get("athlete_profile", {}).get("body_metrics", {})
@@ -41,6 +88,61 @@ def _sleep_pressure(snapshot: dict[str, Any]) -> bool:
     return delta is not None and float(delta) <= -0.3
 
 
+WEIGHT_DROP_CONCERN_KG = -1.5
+POST_ILLNESS_NOTE = (
+    "Post-illness fuelling: eat to appetite plus a little more, keep carbohydrate around every session, "
+    "25-30 g protein per meal, drink well (add electrolytes after fever or stomach upset) and never "
+    "train fasted while recovering."
+)
+RETURN_FROM_BREAK_NOTE = (
+    "Rebuild week: do not combine the return to training with a diet; match intake to the rising "
+    "load so tendons and bone adapt alongside fitness."
+)
+LOW_ENERGY_NOTE = (
+    "Weight is trending down: add a carbohydrate-rich snack around sessions and an extra recovery "
+    "meal on long days; raise it with a sports dietitian or doctor if the drop continues."
+)
+
+
+def _weight_change_kg(
+    snapshot: dict[str, Any], performance: dict[str, Any]
+) -> float | None:
+    concern = performance.get("energy_availability_concern") or {}
+    value = concern.get("weight_change_kg_28d")
+    if value is None:
+        value = (snapshot.get("recent_wellness_summary") or {}).get("weight_trend_kg_28d")
+        if isinstance(value, dict):
+            value = next(
+                (value.get(key) for key in ("change_kg", "delta_kg", "value") if value.get(key) is not None),
+                None,
+            )
+    try:
+        return None if value is None else float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _returning_from_break(snapshot: dict[str, Any], performance: dict[str, Any]) -> bool:
+    info = performance.get("return_from_break") or (
+        (snapshot.get("training_load") or {}).get("return_from_break") or {}
+    )
+    return info.get("status") == "returning"
+
+
+def _post_illness(snapshot: dict[str, Any], performance: dict[str, Any]) -> bool:
+    health = performance.get("health_events") or {}
+    if health.get("status") in {"acute", "returning", "recent"} and any(
+        event.get("kind") == "sick" for event in health.get("events") or []
+    ):
+        return True
+    if "residual_illness_symptoms" in (performance.get("fatigue_markers") or []):
+        return True
+    if performance.get("training_clearance") in {"easy_only", "no_training_see_doctor"}:
+        return True
+    symptoms = (snapshot.get("weekly_checkin") or {}).get("illness_symptoms")
+    return bool(isinstance(symptoms, list) and any(str(item).strip() for item in symptoms))
+
+
 def _energy_availability_risk(
     snapshot: dict[str, Any], performance: dict[str, Any]
 ) -> dict[str, str]:
@@ -67,6 +169,25 @@ def _energy_availability_risk(
         reasons.append(
             "hydration was flagged last week and should be cleaned up intentionally"
         )
+    weight_change = _weight_change_kg(snapshot, performance)
+    concern = performance.get("energy_availability_concern") or {}
+    if concern.get("flag") or (
+        weight_change is not None and weight_change <= WEIGHT_DROP_CONCERN_KG
+    ):
+        risk = "high"
+        reasons.append(
+            f"body weight dropped {abs(weight_change or 0):.1f} kg in 28 days, a low-energy-availability warning sign"
+        )
+    if _returning_from_break(snapshot, performance):
+        if risk == "low":
+            risk = "moderate"
+        reasons.append(
+            "the athlete is rebuilding after a break, when under-fuelling slows the return and raises injury risk"
+        )
+    if _post_illness(snapshot, performance):
+        if risk == "low":
+            risk = "moderate"
+        reasons.append("recent illness raises energy and protein needs while the body recovers")
     if not reasons:
         reasons.append(
             "current readiness and weekly structure do not suggest a major low-energy-availability risk"
@@ -106,30 +227,39 @@ def _session_fueling(
     weight_kg: float,
     readiness_status: str,
     hydration_flag: bool,
+    bucket: str = "unknown",
 ) -> dict[str, Any]:
     protein_target = _protein_target_g(weight_kg)
     discipline = session["discipline"]
     duration = int(session.get("duration_min", 0))
     primary_metric = session.get("primary_metric", "notes")
     reason_codes: list[str] = []
+    gut_note = _gut_training_note(bucket, duration)
 
     if discipline == "Ride":
-        carb_low = 30
-        carb_high = 45
+        hard = float(session.get("expected_if", 0) or 0) >= 0.8
+        carb_low, carb_high = carb_range_g_per_h(duration, hard=hard)
         fluid_low = 500
         fluid_high = 700
         sodium_low = 400
         sodium_high = 700
-        if duration >= 120 or session.get("expected_if", 0) >= 0.8:
-            carb_low = 60
-            carb_high = 75 if weight_kg < 80 else 85
+        if duration >= 120 or hard:
             fluid_low = 600 if hydration_flag else 500
             fluid_high = 850 if hydration_flag else 750
             sodium_low = 500
             sodium_high = 900 if hydration_flag else 800
             reason_codes.extend(["long_or_hard_ride", "carbohydrate_priority"])
         pre = f"Eat roughly {_format_range(int(weight_kg * 0.8), int(weight_kg * 1.1), 'g')} of carbohydrate in the 2-3h before the ride and top up with a small snack if needed."
-        during = f"Aim for {_format_range(carb_low, carb_high, 'g')} carbohydrate/hour, {_format_range(fluid_low, fluid_high, 'ml')} fluid/hour, and {_format_range(sodium_low, sodium_high, 'mg')} sodium/hour; start early rather than chasing later."
+        carbs = (
+            f"Aim for {_format_range(carb_low, carb_high, 'g')} carbohydrate/hour"
+            if carb_high
+            else "No carbohydrate needed during"
+        )
+        during = (
+            f"{carbs}, {_format_range(fluid_low, fluid_high, 'ml')} fluid/hour, and "
+            f"{_format_range(sodium_low, sodium_high, 'mg')} sodium/hour; start early rather than chasing later. "
+            f"{HEAT_NOTE}{gut_note}"
+        )
         post = f"Take {protein_target}-{protein_target + 5}g protein plus a carb-rich meal within 60 minutes."
         hydration_focus = "high" if duration >= 120 or hydration_flag else "moderate"
         return {
@@ -144,7 +274,10 @@ def _session_fueling(
 
     if discipline == "Run" and primary_metric == "Pace":
         pre = f"Take {_format_range(int(weight_kg * 0.7), int(weight_kg * 1.0), 'g')} carbohydrate in the 2-3h before the session so threshold or interval pace stays economical."
-        during = "Water is usually enough during the run itself; add a small carbohydrate top-up only if you start the session later in the day or already depleted."
+        if duration >= 60:
+            during = f"{_carb_text(duration, True)}; water to thirst."
+        else:
+            during = "Water is usually enough during the run itself; add a small carbohydrate top-up only if you start the session later in the day or already depleted."
         post = f"Recover with carbohydrate plus {protein_target}g protein within an hour, especially if another session follows within 24 hours."
         return {
             "date": session["date"],
@@ -157,12 +290,17 @@ def _session_fueling(
         }
 
     if discipline == "Run":
-        needs_mid_run_fuel = duration >= 70 or readiness_status != "green"
-        during = (
-            "Water as needed; a single gel midway is useful if you want to rehearse race habits or if recovery has been shaky."
-            if needs_mid_run_fuel
-            else "Water as needed; no structured during-fuel is required."
-        )
+        low, high = carb_range_g_per_h(duration)
+        needs_mid_run_fuel = bool(high)
+        if needs_mid_run_fuel:
+            during = (
+                f"Aim for {low}-{high}g carbohydrate/hour from the first 30-40 minutes (gels, chews or drink), "
+                f"water to thirst. {HEAT_NOTE}{gut_note}"
+            )
+        elif readiness_status != "green":
+            during = "Water as needed; carry one gel in case energy dips while recovery is shaky."
+        else:
+            during = "Water as needed; no structured during-fuel is required."
         return {
             "date": session["date"],
             "session_name": session["session_name"],
@@ -307,10 +445,10 @@ def run(
     macro: dict[str, Any],
     race: dict[str, Any],
 ) -> dict[str, Any]:
-    del race
+    bucket = race_bucket((race or {}).get("priority_race"))
     weight_kg = _weight_kg(snapshot)
     protein_target = _protein_target_g(weight_kg)
-    readiness_status = performance["readiness_status"]
+    readiness_status = str(performance.get("readiness_status", "green"))
     hydration_flag = _hydration_flag(snapshot)
     energy_risk = _energy_availability_risk(snapshot, performance)
 
@@ -327,7 +465,9 @@ def run(
         day_sessions = sessions_by_date[date]
         day = day_sessions[0]["day"]
         fueling_for_day = [
-            _session_fueling(session, weight_kg, readiness_status, hydration_flag)
+            _session_fueling(
+                session, weight_kg, readiness_status, hydration_flag, bucket
+            )
             for session in day_sessions
             if session["discipline"] != "Recovery"
         ]
@@ -395,6 +535,17 @@ def run(
         )
     if energy_risk["status"] != "low":
         major_concerns.append(energy_risk["rationale"])
+    special_notes: list[str] = []
+    weight_change = _weight_change_kg(snapshot, performance)
+    if (performance.get("energy_availability_concern") or {}).get("flag") or (
+        weight_change is not None and weight_change <= WEIGHT_DROP_CONCERN_KG
+    ):
+        special_notes.append(LOW_ENERGY_NOTE)
+    if _returning_from_break(snapshot, performance):
+        special_notes.append(RETURN_FROM_BREAK_NOTE)
+    if _post_illness(snapshot, performance):
+        special_notes.append(POST_ILLNESS_NOTE)
+    major_concerns.extend(special_notes)
 
     quality_run_days = sum(
         1
@@ -434,7 +585,9 @@ def run(
         "energy_availability_risk": energy_risk,
         "daily_notes": daily_notes,
         "hydration_guidance": "Start sessions hydrated, use the higher end of the fluid range on key and long sessions, and tighten sodium execution when rides run long or sweaty.",
-        "recovery_priorities": f"Hit about {protein_target}g protein after meaningful sessions and avoid stacking two underfueled days together.",
+        "recovery_priorities": f"Hit about {protein_target}g protein after meaningful sessions and avoid stacking two underfueled days together."
+        + (f" {' '.join(special_notes)}" if special_notes else ""),
         "major_concerns": major_concerns,
+        "special_notes": special_notes,
         "confidence": 0.84,
     }

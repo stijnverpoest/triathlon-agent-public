@@ -5,6 +5,8 @@
     "type": "Ride",
     "name": "Sweet spot bike",
     "moving_time": 4500,
+    "distance": 38000,
+    "total_elevation_gain": 350,
     "icu_training_load": 68,
     "average_heartrate": 142
   },
@@ -14,6 +16,8 @@
     "type": "Run",
     "name": "Aerobic run",
     "moving_time": 3000,
+    "distance": 9500,
+    "total_elevation_gain": 45,
     "icu_training_load": 39,
     "average_heartrate": 144
   },
@@ -23,6 +27,8 @@
     "type": "Ride",
     "name": "Long ride",
     "moving_time": 9000,
+    "distance": 78000,
+    "total_elevation_gain": 850,
     "icu_training_load": 112,
     "average_heartrate": 138
   },
@@ -32,6 +38,8 @@
     "type": "Run",
     "name": "Long run",
     "moving_time": 4200,
+    "distance": 13000,
+    "total_elevation_gain": 320,
     "icu_training_load": 53,
     "average_heartrate": 149
   },
@@ -41,6 +49,8 @@
     "type": "Ride",
     "name": "Threshold bike",
     "moving_time": 4800,
+    "distance": 40000,
+    "total_elevation_gain": 300,
     "icu_training_load": 74,
     "average_heartrate": 148
   },
@@ -50,6 +60,8 @@
     "type": "Run",
     "name": "Threshold run",
     "moving_time": 3600,
+    "distance": 11000,
+    "total_elevation_gain": 60,
     "icu_training_load": 58,
     "average_heartrate": 161
   },
@@ -59,6 +71,8 @@
     "type": "Ride",
     "name": "Long ride with tempo",
     "moving_time": 9300,
+    "distance": 82000,
+    "total_elevation_gain": 1100,
     "icu_training_load": 118,
     "average_heartrate": 140
   },
@@ -68,6 +82,8 @@
     "type": "Run",
     "name": "Aerobic long run",
     "moving_time": 4500,
+    "distance": 14000,
+    "total_elevation_gain": 260,
     "icu_training_load": 60,
     "average_heartrate": 148
   },
@@ -77,6 +93,8 @@
     "type": "Ride",
     "name": "Bike threshold build",
     "moving_time": 4800,
+    "distance": 41000,
+    "total_elevation_gain": 320,
     "icu_training_load": 76,
     "average_heartrate": 149
   },
@@ -86,6 +104,8 @@
     "type": "Run",
     "name": "Easy run",
     "moving_time": 2700,
+    "distance": 8500,
+    "total_elevation_gain": 30,
     "icu_training_load": 33,
     "average_heartrate": 141
   },
@@ -95,6 +115,8 @@
     "type": "Run",
     "name": "Progression run",
     "moving_time": 3900,
+    "distance": 12000,
+    "total_elevation_gain": 70,
     "icu_training_load": 61,
     "average_heartrate": 159
   },
@@ -104,6 +126,8 @@
     "type": "Ride",
     "name": "Long ride steady",
     "moving_time": 9600,
+    "distance": 85000,
+    "total_elevation_gain": 700,
     "icu_training_load": 116,
     "average_heartrate": 139
   },
@@ -113,6 +137,8 @@
     "type": "Ride",
     "name": "Bike threshold repeat",
     "moving_time": 4500,
+    "distance": 38000,
+    "total_elevation_gain": 280,
     "icu_training_load": 70,
     "average_heartrate": 147
   },
@@ -122,6 +148,8 @@
     "type": "Run",
     "name": "Easy run",
     "moving_time": 2700,
+    "distance": 8500,
+    "total_elevation_gain": 28,
     "icu_training_load": 32,
     "average_heartrate": 143
   },
@@ -131,6 +159,8 @@
     "type": "Run",
     "name": "Threshold run",
     "moving_time": 3900,
+    "distance": 12000,
+    "total_elevation_gain": 185,
     "icu_training_load": 59,
     "average_heartrate": 163
   },
@@ -140,6 +170,8 @@
     "type": "Ride",
     "name": "Long ride with race blocks",
     "moving_time": 9300,
+    "distance": 83000,
+    "total_elevation_gain": 950,
     "icu_training_load": 112,
     "average_heartrate": 141
   }

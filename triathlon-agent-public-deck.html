@@ -1,0 +1,1421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Triathlon Agent - Technical Workflow Deck</title>
+  <style>
+    :root {
+      --bg: #07111f;
+      --bg-2: #0b1730;
+      --panel: rgba(12, 24, 48, 0.88);
+      --panel-2: rgba(19, 35, 65, 0.82);
+      --line: rgba(140, 180, 255, 0.18);
+      --line-strong: rgba(140, 180, 255, 0.35);
+      --text: #e8f0ff;
+      --muted: #9db0d3;
+      --accent: #58c6ff;
+      --accent-2: #7dffb1;
+      --accent-3: #ffd166;
+      --danger: #ff7d91;
+      --shadow: 0 18px 48px rgba(0, 0, 0, 0.28);
+      --radius: 22px;
+      --radius-sm: 14px;
+      --slide-pad: clamp(28px, 4vw, 64px);
+      --mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      --sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+        "Segoe UI", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 20% 10%, rgba(88, 198, 255, 0.14), transparent 28%),
+        radial-gradient(circle at 80% 16%, rgba(125, 255, 177, 0.14), transparent 24%),
+        radial-gradient(circle at 50% 100%, rgba(255, 209, 102, 0.08), transparent 28%),
+        linear-gradient(180deg, #06101d 0%, #081321 38%, #050b16 100%);
+      color: var(--text);
+      font-family: var(--sans);
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      mask-image: radial-gradient(circle at center, black 55%, transparent 100%);
+    }
+
+    .deck {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      isolation: isolate;
+    }
+
+    .progress-bar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      height: 4px;
+      background: linear-gradient(90deg, var(--accent), var(--accent-2));
+      box-shadow: 0 0 18px rgba(88, 198, 255, 0.55);
+      z-index: 50;
+      width: 0;
+      transition: width 180ms ease;
+    }
+
+    .deck-controls {
+      position: fixed;
+      right: 20px;
+      bottom: 18px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      z-index: 50;
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      background: rgba(5, 12, 25, 0.84);
+      backdrop-filter: blur(14px);
+      border-radius: 999px;
+      box-shadow: var(--shadow);
+    }
+
+    .control-button {
+      border: 1px solid var(--line-strong);
+      background: linear-gradient(180deg, rgba(28, 44, 78, 0.96), rgba(11, 19, 35, 0.96));
+      color: var(--text);
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      cursor: pointer;
+      font-size: 18px;
+      line-height: 1;
+      transition: transform 120ms ease, border-color 120ms ease;
+    }
+
+    .control-button:hover,
+    .control-button:focus-visible {
+      transform: translateY(-1px);
+      border-color: rgba(125, 255, 177, 0.45);
+      outline: none;
+    }
+
+    .slide-count {
+      min-width: 88px;
+      text-align: center;
+      font-size: 13px;
+      color: var(--muted);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .slide {
+      display: none;
+      width: 100vw;
+      height: 100vh;
+      padding: var(--slide-pad);
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+    }
+
+    .slide.active {
+      display: grid;
+      animation: fade-in 180ms ease;
+    }
+
+    @keyframes fade-in {
+      from {
+        opacity: 0;
+        transform: scale(0.992);
+      }
+
+      to {
+        opacity: 1;
+        transform: scale(1);
+      }
+    }
+
+    .slide-shell {
+      height: 100%;
+      display: grid;
+      gap: 22px;
+      grid-template-rows: auto 1fr auto;
+    }
+
+    .slide-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 24px;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 12px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: rgba(10, 22, 42, 0.72);
+      color: var(--accent);
+      font-size: 12px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      font-weight: 700;
+    }
+
+    .slide-title {
+      margin: 14px 0 8px;
+      font-size: clamp(34px, 4vw, 60px);
+      line-height: 1.02;
+      letter-spacing: -0.03em;
+      max-width: 13ch;
+    }
+
+    .slide-subtitle {
+      margin: 0;
+      max-width: 70ch;
+      color: var(--muted);
+      font-size: clamp(16px, 1.6vw, 22px);
+      line-height: 1.5;
+    }
+
+    .slide-body {
+      min-height: 0;
+      display: grid;
+      gap: 22px;
+      align-items: start;
+    }
+
+    .slide-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      color: var(--muted);
+      font-size: 13px;
+      border-top: 1px solid var(--line);
+      padding-top: 12px;
+    }
+
+    .footer-right {
+      font-family: var(--mono);
+    }
+
+    .hero-grid,
+    .two-col,
+    .three-col,
+    .stack-grid,
+    .commands-grid,
+    .safety-grid {
+      display: grid;
+      gap: 20px;
+    }
+
+    .hero-grid {
+      grid-template-columns: 1.3fr 0.9fr;
+    }
+
+    .two-col {
+      grid-template-columns: 1.08fr 0.92fr;
+    }
+
+    .three-col {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .stack-grid {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .commands-grid {
+      grid-template-columns: 0.95fr 1.05fr;
+    }
+
+    .safety-grid {
+      grid-template-columns: 1fr 1fr;
+    }
+
+    .panel,
+    .card,
+    .stat,
+    .code-panel,
+    .diagram-panel,
+    .quote-panel {
+      position: relative;
+      border-radius: var(--radius);
+      background: var(--panel);
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .panel::after,
+    .card::after,
+    .stat::after,
+    .code-panel::after,
+    .diagram-panel::after,
+    .quote-panel::after {
+      content: "";
+      position: absolute;
+      inset: 0 auto auto 0;
+      width: 100%;
+      height: 1px;
+      background: linear-gradient(90deg, rgba(88, 198, 255, 0.28), transparent 70%);
+    }
+
+    .panel,
+    .quote-panel,
+    .diagram-panel,
+    .code-panel {
+      padding: 22px;
+    }
+
+    .card,
+    .stat {
+      padding: 18px;
+      background: var(--panel-2);
+    }
+
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 16px;
+    }
+
+    .chip {
+      padding: 8px 12px;
+      border-radius: 999px;
+      font-size: 13px;
+      color: var(--text);
+      background: rgba(23, 41, 71, 0.9);
+      border: 1px solid rgba(125, 255, 177, 0.16);
+    }
+
+    .metric-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px;
+      margin-top: 18px;
+    }
+
+    .metric {
+      min-width: 130px;
+      padding: 14px;
+      border-radius: 16px;
+      background: rgba(8, 18, 35, 0.78);
+      border: 1px solid var(--line);
+    }
+
+    .metric-label {
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .metric-value {
+      display: block;
+      margin-top: 6px;
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--accent-2);
+    }
+
+    h3 {
+      margin: 0 0 12px;
+      font-size: 22px;
+      line-height: 1.15;
+    }
+
+    p {
+      margin: 0;
+      line-height: 1.58;
+      color: var(--text);
+    }
+
+    .muted {
+      color: var(--muted);
+    }
+
+    ul,
+    ol {
+      margin: 0;
+      padding-left: 20px;
+      color: var(--text);
+      line-height: 1.52;
+    }
+
+    li + li {
+      margin-top: 8px;
+    }
+
+    .plain-list {
+      list-style: none;
+      padding: 0;
+    }
+
+    .plain-list li {
+      padding: 10px 0;
+      border-bottom: 1px solid rgba(157, 176, 211, 0.12);
+    }
+
+    .plain-list li:last-child {
+      border-bottom: none;
+    }
+
+    code,
+    pre {
+      font-family: var(--mono);
+    }
+
+    code {
+      font-size: 0.95em;
+      color: var(--accent-2);
+    }
+
+    pre {
+      margin: 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-size: 14px;
+      line-height: 1.55;
+      color: #dff7ff;
+    }
+
+    .code-panel {
+      background: linear-gradient(180deg, rgba(7, 16, 33, 0.96), rgba(6, 13, 27, 0.98));
+    }
+
+    .code-label,
+    .card-label,
+    .panel-label {
+      display: inline-block;
+      margin-bottom: 12px;
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+
+    .card-title {
+      margin: 0 0 10px;
+      font-size: 18px;
+      line-height: 1.2;
+    }
+
+    .card-copy {
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.48;
+    }
+
+    .card-tag-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 14px;
+    }
+
+    .card-tag {
+      padding: 6px 9px;
+      border-radius: 999px;
+      background: rgba(88, 198, 255, 0.08);
+      color: var(--muted);
+      border: 1px solid rgba(88, 198, 255, 0.12);
+      font-size: 12px;
+    }
+
+    .diagram-panel svg {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+
+    .caption {
+      margin-top: 14px;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .tree {
+      font-family: var(--mono);
+      font-size: 14px;
+      line-height: 1.55;
+      color: #dff7ff;
+      white-space: pre;
+    }
+
+    .quote-panel {
+      display: grid;
+      gap: 18px;
+      align-content: start;
+      background: linear-gradient(180deg, rgba(14, 28, 54, 0.92), rgba(7, 14, 29, 0.96));
+    }
+
+    .quote-panel .big {
+      font-size: clamp(26px, 2vw, 34px);
+      line-height: 1.18;
+      letter-spacing: -0.02em;
+      max-width: 18ch;
+    }
+
+    .timeline {
+      display: grid;
+      gap: 12px;
+    }
+
+    .timeline-step {
+      display: grid;
+      grid-template-columns: 52px 1fr;
+      gap: 14px;
+      padding: 14px;
+      border-radius: 16px;
+      background: rgba(10, 20, 39, 0.72);
+      border: 1px solid rgba(140, 180, 255, 0.12);
+    }
+
+    .step-index {
+      display: grid;
+      place-items: center;
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      background: linear-gradient(180deg, rgba(88, 198, 255, 0.24), rgba(88, 198, 255, 0.1));
+      border: 1px solid rgba(88, 198, 255, 0.28);
+      color: var(--accent);
+      font-weight: 700;
+      font-family: var(--mono);
+    }
+
+    .step-title {
+      font-size: 17px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .step-copy {
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.46;
+    }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px;
+      margin-top: 12px;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .legend-swatch {
+      width: 12px;
+      height: 12px;
+      border-radius: 4px;
+    }
+
+    .small {
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .danger {
+      color: var(--danger);
+    }
+
+    .accent {
+      color: var(--accent);
+    }
+
+    .accent-2 {
+      color: var(--accent-2);
+    }
+
+    .accent-3 {
+      color: var(--accent-3);
+    }
+
+    @media (max-width: 1200px) {
+      .hero-grid,
+      .two-col,
+      .commands-grid,
+      .safety-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .three-col {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .stack-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .slide {
+        overflow-y: auto;
+      }
+
+      html,
+      body {
+        overflow: auto;
+      }
+    }
+
+    @media (max-width: 760px) {
+      .three-col,
+      .stack-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .slide-title {
+        max-width: none;
+      }
+
+      .slide-footer {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="progress-bar" id="progress-bar"></div>
+  <main class="deck" id="deck">
+    <section class="slide active" data-title="Title">
+      <div class="slide-shell">
+        <header class="slide-header">
+          <div>
+            <span class="eyebrow">Technical Public Deck</span>
+            <h1 class="slide-title">Triathlon Agent</h1>
+            <p class="slide-subtitle">
+              A local, inspectable weekly coaching workflow built from OpenCode orchestration,
+              specialist agents, and a deterministic Python execution layer.
+            </p>
+            <div class="chips">
+              <span class="chip">OpenCode main agent</span>
+              <span class="chip">Intervals.icu integration</span>
+              <span class="chip">Approval before write-back</span>
+              <span class="chip">Live and mock modes</span>
+            </div>
+            <div class="metric-row">
+              <div class="metric">
+                <span class="metric-label">Reasoning model</span>
+                <span class="metric-value">Multi-agent</span>
+              </div>
+              <div class="metric">
+                <span class="metric-label">Execution model</span>
+                <span class="metric-value">Artifact-driven</span>
+              </div>
+              <div class="metric">
+                <span class="metric-label">Safety model</span>
+                <span class="metric-value">Human approval</span>
+              </div>
+            </div>
+          </div>
+          <div class="quote-panel">
+            <span class="panel-label">What this talk covers</span>
+            <div class="big">How the workflow runs, which agents exist, how the tooling layer works, and how the system stays safe enough to publish.</div>
+            <ul class="plain-list">
+              <li>Workflow from user request to Intervals push</li>
+              <li>Specialist agents and their responsibilities</li>
+              <li>Modules, commands, artifacts, and external tools</li>
+              <li>Validation, approval, mock mode, and tradeoffs</li>
+            </ul>
+          </div>
+        </header>
+        <div class="slide-body hero-grid">
+          <div class="panel">
+            <span class="panel-label">Core idea</span>
+            <h3>Reason in prompts, execute in Python, persist everything as files.</h3>
+            <p>
+              The repo deliberately splits <span class="accent">coaching reasoning</span> from
+              <span class="accent-2">execution and write-back</span>. The LLM side decides what
+              the week should be. The Python side fetches data, normalizes context, validates
+              artifacts, compiles workouts, and pushes only after approval.
+            </p>
+          </div>
+          <div class="panel">
+            <span class="panel-label">Operator notes</span>
+            <ul>
+              <li>Open with any modern browser.</li>
+              <li>Use arrow keys, space, Page Up or Page Down.</li>
+              <li>Everything is self-contained in one HTML file.</li>
+              <li>No secrets or athlete-specific local files are embedded here.</li>
+            </ul>
+          </div>
+        </div>
+        <footer class="slide-footer">
+          <span>Triathlon Agent public architecture deck</span>
+          <span class="footer-right">Workflow - agents - tooling - safety</span>
+        </footer>
+      </div>
+    </section>
+
+    <section class="slide" data-title="Problem">
+      <div class="slide-shell">
+        <header class="slide-header">
+          <div>
+            <span class="eyebrow">Why This Exists</span>
+            <h2 class="slide-title">The planning problem is half data pipeline, half coaching judgment.</h2>
+            <p class="slide-subtitle">
+              A useful weekly plan is not just a prompt response. It has to combine live training
+              data, subjective athlete context, constraints, doctrine, and safe write-back.
+            </p>
+          </div>
+        </header>
+        <div class="slide-body two-col">
+          <div class="panel">
+            <span class="panel-label">Constraints the system has to satisfy</span>
+            <ul>
+              <li>Use fresh Intervals.icu activities, wellness, sport settings, and race calendar.</li>
+              <li>Ask only for things the API cannot know, such as pain, travel, and availability.</li>
+              <li>Make the reasoning inspectable after the fact.</li>
+              <li>Be safe enough to push structured workouts into a real training calendar.</li>
+              <li>Support offline, deterministic testing without credentials.</li>
+            </ul>
+          </div>
+          <div class="panel">
+            <span class="panel-label">Why not one monolithic prompt?</span>
+            <ul>
+              <li>Different decisions have different objectives: readiness, macro phase, race specificity, weekly layout, doctrine, nutrition, and validation.</li>
+              <li>Ordered agent outputs are easier to validate than one giant freeform answer.</li>
+              <li>Persisted JSON artifacts make the run resumable, reviewable, and testable.</li>
+              <li>Python remains deterministic for fetch, compile, validation, and push.</li>
+            </ul>
+          </div>
+        </div>
+        <footer class="slide-footer">
+          <span>Design target: practical weekly planning with an auditable trail</span>
+          <span class="footer-right">README.md · DESIGN.md</span>
+        </footer>
+      </div>
+    </section>
+
+    <section class="slide" data-title="Architecture">
+      <div class="slide-shell">
+        <header class="slide-header">
+          <div>
+            <span class="eyebrow">System Architecture</span>
+            <h2 class="slide-title">Two-layer architecture with a hard boundary at run artifacts.</h2>
+            <p class="slide-subtitle">
+              The OpenCode layer owns coaching reasoning. The Python layer owns deterministic
+              preparation, validation, compilation, and write-back.
+            </p>
+          </div>
+        </header>
+        <div class="slide-body two-col">
+          <div class="diagram-panel">
+            <span class="panel-label">High-level flow</span>
+            <svg viewBox="0 0 980 520" role="img" aria-label="Triathlon Agent architecture diagram">
+              <defs>
+                <linearGradient id="boxA" x1="0" x2="1">
+                  <stop offset="0%" stop-color="#14345c"></stop>
+                  <stop offset="100%" stop-color="#0d1f3b"></stop>
+                </linearGradient>
+                <linearGradient id="boxB" x1="0" x2="1">
+                  <stop offset="0%" stop-color="#103640"></stop>
+                  <stop offset="100%" stop-color="#0b242e"></stop>
+                </linearGradient>
+                <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+                  <path d="M 0 0 L 10 5 L 0 10 z" fill="#8ab4ff"></path>
+                </marker>
+              </defs>
+              <rect x="24" y="30" width="932" height="458" rx="26" fill="rgba(8, 18, 35, 0.72)" stroke="rgba(140, 180, 255, 0.16)"></rect>
+              <text x="58" y="68" fill="#58c6ff" font-size="18" font-family="sans-serif" font-weight="700">Python execution layer</text>
+              <text x="522" y="68" fill="#7dffb1" font-size="18" font-family="sans-serif" font-weight="700">Reasoning layer</text>
+
+              <rect x="56" y="106" width="200" height="90" rx="18" fill="url(#boxA)" stroke="rgba(88,198,255,0.28)"></rect>
+              <text x="156" y="141" text-anchor="middle" fill="#e8f0ff" font-size="22" font-family="sans-serif" font-weight="700">Local inputs</text>
+              <text x="156" y="168" text-anchor="middle" fill="#9db0d3" font-size="15" font-family="monospace">data/*.json or fixtures/*.json</text>
+
+              <rect x="56" y="246" width="200" height="90" rx="18" fill="url(#boxA)" stroke="rgba(88,198,255,0.28)"></rect>
+              <text x="156" y="281" text-anchor="middle" fill="#e8f0ff" font-size="22" font-family="sans-serif" font-weight="700">triathlon_agent.cli</text>
+              <text x="156" y="308" text-anchor="middle" fill="#9db0d3" font-size="15" font-family="monospace">prepare-run / finalize-run / approve</text>
+
+              <rect x="56" y="386" width="200" height="70" rx="18" fill="url(#boxA)" stroke="rgba(88,198,255,0.28)"></rect>
+              <text x="156" y="428" text-anchor="middle" fill="#e8f0ff" font-size="22" font-family="sans-serif" font-weight="700">Intervals.icu</text>
+
+              <rect x="330" y="106" width="230" height="90" rx="18" fill="url(#boxA)" stroke="rgba(88,198,255,0.28)"></rect>
+              <text x="445" y="141" text-anchor="middle" fill="#e8f0ff" font-size="22" font-family="sans-serif" font-weight="700">workflow.py</text>
+              <text x="445" y="168" text-anchor="middle" fill="#9db0d3" font-size="15" font-family="monospace">run lifecycle + artifact management</text>
+
+              <rect x="330" y="246" width="230" height="90" rx="18" fill="url(#boxA)" stroke="rgba(88,198,255,0.28)"></rect>
+              <text x="445" y="281" text-anchor="middle" fill="#e8f0ff" font-size="22" font-family="sans-serif" font-weight="700">normalizer.py</text>
+              <text x="445" y="308" text-anchor="middle" fill="#9db0d3" font-size="15" font-family="monospace">one normalized coaching snapshot</text>
+
+              <rect x="330" y="386" width="230" height="70" rx="18" fill="url(#boxA)" stroke="rgba(88,198,255,0.28)"></rect>
+              <text x="445" y="428" text-anchor="middle" fill="#e8f0ff" font-size="22" font-family="sans-serif" font-weight="700">compiler.py + report.py</text>
+
+              <rect x="644" y="106" width="270" height="110" rx="18" fill="url(#boxB)" stroke="rgba(125,255,177,0.28)"></rect>
+              <text x="779" y="144" text-anchor="middle" fill="#e8f0ff" font-size="22" font-family="sans-serif" font-weight="700">OpenCode main agent</text>
+              <text x="779" y="172" text-anchor="middle" fill="#9db0d3" font-size="15" font-family="monospace">prompt orchestration</text>
+              <text x="779" y="194" text-anchor="middle" fill="#9db0d3" font-size="15" font-family="monospace">specialist JSON artifacts</text>
+
+              <rect x="644" y="266" width="270" height="90" rx="18" fill="url(#boxB)" stroke="rgba(125,255,177,0.28)"></rect>
+              <text x="779" y="301" text-anchor="middle" fill="#e8f0ff" font-size="22" font-family="sans-serif" font-weight="700">prompts/*.md + schemas/*.json</text>
+              <text x="779" y="328" text-anchor="middle" fill="#9db0d3" font-size="15" font-family="monospace">role instructions + output contracts</text>
+
+              <path d="M 256 151 L 330 151" stroke="#8ab4ff" stroke-width="3" fill="none" marker-end="url(#arrow)"></path>
+              <path d="M 256 291 L 330 291" stroke="#8ab4ff" stroke-width="3" fill="none" marker-end="url(#arrow)"></path>
+              <path d="M 445 196 L 445 246" stroke="#8ab4ff" stroke-width="3" fill="none" marker-end="url(#arrow)"></path>
+              <path d="M 560 151 L 644 151" stroke="#7dffb1" stroke-width="3" fill="none" marker-end="url(#arrow)"></path>
+              <path d="M 779 216 L 779 266" stroke="#7dffb1" stroke-width="3" fill="none" marker-end="url(#arrow)"></path>
+              <path d="M 779 356 L 779 428 L 560 428" stroke="#7dffb1" stroke-width="3" fill="none" marker-end="url(#arrow)"></path>
+              <path d="M 256 421 L 330 421" stroke="#8ab4ff" stroke-width="3" fill="none" marker-end="url(#arrow)"></path>
+            </svg>
+            <p class="caption">The run folder is the state boundary. The LLM layer writes artifacts into it. The Python layer validates and pushes from it.</p>
+          </div>
+          <div class="panel">
+            <span class="panel-label">Public-safe architecture choices</span>
+            <ul>
+              <li>Standard library Python only.</li>
+              <li>Local-only athlete data and `.env` stay out of git.</li>
+              <li>`runs/` acts as a complete audit log for each planning session.</li>
+              <li>Reasoning is externalized into prompts and persisted outputs, not buried in one opaque runtime.</li>
+            </ul>
+          </div>
+        </div>
+        <footer class="slide-footer">
+          <span>Boundary: prompts reason, Python executes</span>
+          <span class="footer-right">README.md system diagram</span>
+        </footer>
+      </div>
+    </section>
+
+    <section class="slide" data-title="Workflow">
+      <div class="slide-shell">
+        <header class="slide-header">
+          <div>
+            <span class="eyebrow">End-to-End Workflow</span>
+            <h2 class="slide-title">From “plan my week” to approved Intervals events.</h2>
+            <p class="slide-subtitle">
+              The production flow always starts with fresh data fetch and stops at an approval gate
+              before any write-back.
+            </p>
+          </div>
+        </header>
+        <div class="slide-body commands-grid">
+          <div class="timeline">
+            <div class="timeline-step"><div class="step-index">1</div><div><div class="step-title">User request</div><div class="step-copy">The user says <code>plan my week</code>. The CLI rewrites the phrase to <code>prepare-run</code> rather than drafting immediately.</div></div></div>
+            <div class="timeline-step"><div class="step-index">2</div><div><div class="step-title">Prepare run</div><div class="step-copy">Fetch Intervals profile, sport settings, wellness, activities, and calendar events. Load local athlete profile and weekly check-in.</div></div></div>
+            <div class="timeline-step"><div class="step-index">3</div><div><div class="step-title">Normalize snapshot</div><div class="step-copy">Write <code>normalized_snapshot.json</code> and <code>run_context.json</code> so the main agent can reason over one coherent view.</div></div></div>
+            <div class="timeline-step"><div class="step-index">4</div><div><div class="step-title">Targeted follow-up</div><div class="step-copy">Summarize what happened last week, then ask only for subjective feedback and next-week constraints the API cannot know.</div></div></div>
+            <div class="timeline-step"><div class="step-index">5</div><div><div class="step-title">Specialist chain</div><div class="step-copy">Run agents in order, writing one JSON artifact per role into <code>agent_outputs/</code>.</div></div></div>
+            <div class="timeline-step"><div class="step-index">6</div><div><div class="step-title">Finalize</div><div class="step-copy">Validate contracts, aggregate outputs, render <code>weekly_report.md</code>, and keep approval status pending.</div></div></div>
+            <div class="timeline-step"><div class="step-index">7</div><div><div class="step-title">Approval gate</div><div class="step-copy">A human reviews the report. No compilation and no push happen before approval.</div></div></div>
+            <div class="timeline-step"><div class="step-index">8</div><div><div class="step-title">Compile and push</div><div class="step-copy">Compile workouts and note events, run the syntax guard, bulk upsert to Intervals, and record <code>push_result.json</code>.</div></div></div>
+          </div>
+          <div class="code-panel">
+            <span class="code-label">Production command sequence</span>
+            <pre>python3 -m triathlon_agent.cli prepare-run \
+  --mode live \
+  --athlete-profile data/athlete_profile.json \
+  --weekly-checkin data/weekly_checkin.json
+
+python3 -m triathlon_agent.cli finalize-run runs/&lt;run_id&gt;
+
+python3 -m triathlon_agent.cli approve runs/&lt;run_id&gt; --mode live</pre>
+            <p class="caption">
+              The deterministic stub flow still exists for tests and offline demos, but live planning is
+              intentionally staged through <code>prepare-run</code> and <code>finalize-run</code>.
+            </p>
+          </div>
+        </div>
+        <footer class="slide-footer">
+          <span>Mandatory order is documented in prompts/weekly_workflow.md</span>
+          <span class="footer-right">prepare-run -> finalize-run -> approve</span>
+        </footer>
+      </div>
+    </section>
+
+    <section class="slide" data-title="Agents I">
+      <div class="slide-shell">
+        <header class="slide-header">
+          <div>
+            <span class="eyebrow">Specialist Agents I</span>
+            <h2 class="slide-title">Diagnosis, macro direction, race lens, and week layout.</h2>
+            <p class="slide-subtitle">
+              The first half of the chain turns raw athlete context into a draft seven-day training week.
+            </p>
+          </div>
+        </header>
+        <div class="slide-body stack-grid">
+          <article class="card">
+            <span class="card-label">1</span>
+            <h3 class="card-title">performance_doctor</h3>
+            <p class="card-copy">Reads readiness, fatigue, recovery, and injury risk from live history plus subjective check-in. Sets the caution level for the week.</p>
+            <div class="card-tag-row"><span class="card-tag">readiness</span><span class="card-tag">fatigue</span><span class="card-tag">risk</span></div>
+          </article>
+          <article class="card">
+            <span class="card-label">2</span>
+            <h3 class="card-title">macro_coach</h3>
+            <p class="card-copy">Applies Friel-style periodization to classify the week, determine phase, and decide whether the athlete should load, absorb, recover, or taper.</p>
+            <div class="card-tag-row"><span class="card-tag">phase</span><span class="card-tag">block week</span><span class="card-tag">periodization</span></div>
+          </article>
+          <article class="card">
+            <span class="card-label">3</span>
+            <h3 class="card-title">race_director</h3>
+            <p class="card-copy">Chooses the priority race lens from Intervals calendar data and translates it into race-specific needs for this week.</p>
+            <div class="card-tag-row"><span class="card-tag">race priority</span><span class="card-tag">specificity</span><span class="card-tag">calendar-aware</span></div>
+          </article>
+          <article class="card">
+            <span class="card-label">4</span>
+            <h3 class="card-title">head_coach_planner</h3>
+            <p class="card-copy">Builds the seven-day schedule. Places workouts, recovery, session durations, and discipline-specific targeting while respecting constraints.</p>
+            <div class="card-tag-row"><span class="card-tag">Daniels</span><span class="card-tag">Coggan</span><span class="card-tag">weekly layout</span></div>
+          </article>
+        </div>
+        <footer class="slide-footer">
+          <span>These four agents create the initial coaching shape of the week</span>
+          <span class="footer-right">performance -> macro -> race -> plan</span>
+        </footer>
+      </div>
+    </section>
+
+    <section class="slide" data-title="Agents II">
+      <div class="slide-shell">
+        <header class="slide-header">
+          <div>
+            <span class="eyebrow">Specialist Agents II</span>
+            <h2 class="slide-title">Audit, critique, fueling, synthesis, and pre-push safety.</h2>
+            <p class="slide-subtitle">
+              The second half of the chain treats the draft like code review: phase alignment,
+              doctrine checks, realism checks, then delivery formatting.
+            </p>
+          </div>
+        </header>
+        <div class="slide-body stack-grid">
+          <article class="card">
+            <span class="card-label">5</span>
+            <h3 class="card-title">phase_alignment_auditor</h3>
+            <p class="card-copy">Checks whether the drafted week matches the macro phase and the race timeline. Flags plans that are too aggressive or mistimed.</p>
+          </article>
+          <article class="card">
+            <span class="card-label">6</span>
+            <h3 class="card-title">training_philosophy_auditor</h3>
+            <p class="card-copy">Verifies doctrinal coherence across Daniels for runs, Coggan for bikes, and Friel for block structure.</p>
+          </article>
+          <article class="card">
+            <span class="card-label">7</span>
+            <h3 class="card-title">validator_coach</h3>
+            <p class="card-copy">Acts as quality control. Critiques overload, sequencing, realism, and unnecessary complexity. Proposes edits before the plan is finalized.</p>
+          </article>
+          <article class="card">
+            <span class="card-label">8</span>
+            <h3 class="card-title">nutritionist</h3>
+            <p class="card-copy">Maps fueling and hydration guidance onto the actual plan and produces only meaningful daily note events.</p>
+          </article>
+          <article class="card">
+            <span class="card-label">9</span>
+            <h3 class="card-title">orchestrator</h3>
+            <p class="card-copy">The synthesis layer. Resolves conflicts across specialists and writes the final narrative package as <code>final_plan.json</code>.</p>
+          </article>
+          <article class="card">
+            <span class="card-label">post-approval</span>
+            <h3 class="card-title">intervals_syntax_guard</h3>
+            <p class="card-copy">Runs only after approval. Reviews compiled workout descriptions for Intervals parseability and rewrites syntax conservatively without redesigning the plan.</p>
+          </article>
+        </div>
+        <footer class="slide-footer">
+          <span>Reasoning ends at final_plan.json; syntax guard operates only on compiled payloads</span>
+          <span class="footer-right">auditors + validator + nutrition + synthesis</span>
+        </footer>
+      </div>
+    </section>
+
+    <section class="slide" data-title="Contracts">
+      <div class="slide-shell">
+        <header class="slide-header">
+          <div>
+            <span class="eyebrow">Contracts And Artifacts</span>
+            <h2 class="slide-title">This system reasons through files, not just chat.</h2>
+            <p class="slide-subtitle">
+              Prompts define roles. Schemas define output shape. The run folder becomes the complete,
+              inspectable state of a planning session.
+            </p>
+          </div>
+        </header>
+        <div class="slide-body two-col">
+          <div class="code-panel">
+            <span class="code-label">Typical run folder</span>
+            <div class="tree">runs/&lt;run_id&gt;/
+  inputs.json
+  normalized_snapshot.json
+  run_context.json
+  planning_state.json
+  approval.json
+  draft_plan.json
+  final_plan.json
+  weekly_report.md
+  weekly_dashboard.html
+  athlete_brief.md
+  agent_outputs/
+    performance_doctor.json
+    macro_coach.json
+    race_director.json
+    head_coach_planner.json
+    phase_alignment_auditor.json
+    training_philosophy_auditor.json
+    validator_coach.json
+    nutritionist.json
+  compiled_workouts.json
+  compiled_notes.json
+  compiled_push_payload.json
+  push_result.json</div>
+          </div>
+          <div class="panel">
+            <span class="panel-label">Why this matters</span>
+            <ul>
+              <li><code>prompts/*.md</code> hold the reasoning instructions for each role.</li>
+              <li><code>schemas/*.json</code> define the required shape for each specialist output.</li>
+              <li><code>contracts.py</code> re-validates those contracts locally before the report is treated as final.</li>
+              <li>The artifact trail makes debugging and public explanation much easier.</li>
+            </ul>
+            <div class="legend">
+              <div class="legend-item"><span class="legend-swatch" style="background:#58c6ff"></span>Reasoning contract</div>
+              <div class="legend-item"><span class="legend-swatch" style="background:#7dffb1"></span>Execution artifact</div>
+              <div class="legend-item"><span class="legend-swatch" style="background:#ffd166"></span>Approval or push state</div>
+            </div>
+          </div>
+        </div>
+        <footer class="slide-footer">
+          <span>Artifacts are the boundary between LLM reasoning and deterministic execution</span>
+          <span class="footer-right">schemas/ + contracts.py + runs/</span>
+        </footer>
+      </div>
+    </section>
+
+    <section class="slide" data-title="Modules">
+      <div class="slide-shell">
+        <header class="slide-header">
+          <div>
+            <span class="eyebrow">Python Tooling Layer</span>
+            <h2 class="slide-title">The modules are intentionally small, explicit, and boring.</h2>
+            <p class="slide-subtitle">
+              The Python side does not try to be the coach in production. It provides stable rails
+              around the coaching workflow.
+            </p>
+          </div>
+        </header>
+        <div class="slide-body stack-grid">
+          <article class="card"><h3 class="card-title">cli.py</h3><p class="card-copy">Exposes <code>prepare-run</code>, <code>finalize-run</code>, <code>approve</code>, and mock-only <code>plan-week</code>. Also rewrites <code>plan my week</code> to <code>prepare-run</code>.</p></article>
+          <article class="card"><h3 class="card-title">workflow.py</h3><p class="card-copy">Owns run-folder lifecycle, state transitions, artifact writes, validation hooks, and final push orchestration.</p></article>
+          <article class="card"><h3 class="card-title">normalizer.py</h3><p class="card-copy">Merges local inputs, Intervals data, race data, adherence history, wellness, and constraints into one planning snapshot.</p></article>
+          <article class="card"><h3 class="card-title">intervals.py</h3><p class="card-copy">Provides live and mock adapters. Live mode uses stdlib <code>urllib</code>; mock mode returns fixture-backed responses.</p></article>
+          <article class="card"><h3 class="card-title">compiler.py</h3><p class="card-copy">Converts the approved plan into Intervals-compatible workout events and note events, preserving conservative syntax.</p></article>
+          <article class="card"><h3 class="card-title">report.py</h3><p class="card-copy">Renders <code>weekly_report.md</code> and <code>athlete_brief.md</code> for human review before push.</p></article>
+          <article class="card"><h3 class="card-title">dashboard.py</h3><p class="card-copy">Builds an HTML dashboard so a run has both narrative and visual review surfaces.</p></article>
+          <article class="card"><h3 class="card-title">contracts.py</h3><p class="card-copy">Validates specialist outputs and final plan structure, including doctrine-specific fields like Daniels type or Coggan IF and TSS.</p></article>
+        </div>
+        <footer class="slide-footer">
+          <span>Execution rails instead of hidden magic</span>
+          <span class="footer-right">standard library Python only</span>
+        </footer>
+      </div>
+    </section>
+
+    <section class="slide" data-title="Tool Stack">
+      <div class="slide-shell">
+        <header class="slide-header">
+          <div>
+            <span class="eyebrow">Tool Stack</span>
+            <h2 class="slide-title">What is used, and where each tool belongs.</h2>
+            <p class="slide-subtitle">
+              The stack is intentionally small: local files, prompt contracts, a standard-library CLI,
+              and one external training platform.
+            </p>
+          </div>
+        </header>
+        <div class="slide-body three-col">
+          <div class="stat">
+            <span class="card-label">LLM layer</span>
+            <h3 class="card-title">OpenCode main agent</h3>
+            <p class="card-copy">Runs the specialist sequence, asks targeted follow-ups, and synthesizes the weekly coaching package.</p>
+          </div>
+          <div class="stat">
+            <span class="card-label">Reasoning contracts</span>
+            <h3 class="card-title">Markdown prompts + JSON schemas</h3>
+            <p class="card-copy">Prompts describe specialist roles. Schemas constrain the shape of the outputs they must produce.</p>
+          </div>
+          <div class="stat">
+            <span class="card-label">Execution</span>
+            <h3 class="card-title">Python 3.11 standard library</h3>
+            <p class="card-copy">No third-party dependencies required for runtime execution.</p>
+          </div>
+          <div class="stat">
+            <span class="card-label">External API</span>
+            <h3 class="card-title">Intervals.icu</h3>
+            <p class="card-copy">Source of live profile, activities, wellness, sport settings, and race events; destination for approved workouts and notes.</p>
+          </div>
+          <div class="stat">
+            <span class="card-label">Persistence</span>
+            <h3 class="card-title">Local JSON artifacts</h3>
+            <p class="card-copy">Every run writes inspectable files so the workflow is debuggable and resumable.</p>
+          </div>
+          <div class="stat">
+            <span class="card-label">Verification</span>
+            <h3 class="card-title">fixtures + unittest</h3>
+            <p class="card-copy">Mock mode preserves parity for deterministic tests and dry-runs without live credentials.</p>
+          </div>
+        </div>
+        <footer class="slide-footer">
+          <span>Small stack, explicit responsibilities, public-safe repo boundaries</span>
+          <span class="footer-right">README.md public repo notes</span>
+        </footer>
+      </div>
+    </section>
+
+    <section class="slide" data-title="Live Mock">
+      <div class="slide-shell">
+        <header class="slide-header">
+          <div>
+            <span class="eyebrow">Modes And Safety</span>
+            <h2 class="slide-title">Mock mode keeps tests deterministic. Live mode keeps write-back gated.</h2>
+            <p class="slide-subtitle">
+              The repo is designed to support both public demonstration and real athlete use without
+              collapsing those two concerns into one unsafe path.
+            </p>
+          </div>
+        </header>
+        <div class="slide-body safety-grid">
+          <div class="panel">
+            <span class="panel-label">Mock mode</span>
+            <ul>
+              <li>Uses fixture-backed Intervals snapshots.</li>
+              <li>Supports <code>plan-week --mode mock</code> for deterministic dry-runs.</li>
+              <li>Makes tests stable and public demos reproducible.</li>
+              <li>Returns fake push results instead of touching a real account.</li>
+            </ul>
+          </div>
+          <div class="panel">
+            <span class="panel-label">Live mode</span>
+            <ul>
+              <li>Uses a personal API key from local <code>.env</code>.</li>
+              <li>Starts with a fresh fetch through <code>prepare-run</code>.</li>
+              <li>Waits for explicit approval before any compile or push step.</li>
+              <li>Records exact push payload and push result back into the run folder.</li>
+            </ul>
+          </div>
+          <div class="panel">
+            <span class="panel-label">Approval gate</span>
+            <ul>
+              <li><code>approval.json</code> begins in <code>pending</code>.</li>
+              <li><code>finalize-run</code> renders the human review package.</li>
+              <li><code>approve</code> compiles and pushes only after approval is recorded.</li>
+            </ul>
+          </div>
+          <div class="panel">
+            <span class="panel-label">Pre-push protections</span>
+            <ul>
+              <li>Local contract validation through <code>contracts.py</code>.</li>
+              <li>Conservative workout syntax generation in <code>compiler.py</code>.</li>
+              <li><code>intervals_syntax_guard</code> checks payload parseability after approval.</li>
+            </ul>
+          </div>
+        </div>
+        <footer class="slide-footer">
+          <span>No direct push from prompt reasoning</span>
+          <span class="footer-right">approval.json -> compiled_push_payload.json -> push_result.json</span>
+        </footer>
+      </div>
+    </section>
+
+    <section class="slide" data-title="Writeback">
+      <div class="slide-shell">
+        <header class="slide-header">
+          <div>
+            <span class="eyebrow">Write-Back Model</span>
+            <h2 class="slide-title">What actually gets pushed after approval.</h2>
+            <p class="slide-subtitle">
+              The final plan is not pushed raw. It is compiled into Intervals event payloads with a
+              conservative mapping by discipline and session type.
+            </p>
+          </div>
+        </header>
+        <div class="slide-body two-col">
+          <div class="panel">
+            <span class="panel-label">Compilation rules</span>
+            <ul>
+              <li>Bike workouts target <code>%FTP</code>.</li>
+              <li>Easy or aerobic runs target <code>HR</code>.</li>
+              <li>Quality runs target <code>Pace</code> from Intervals threshold pace.</li>
+              <li>Swims are pushed as simple swim events when structure does not need full syntax.</li>
+              <li>Strength is represented conservatively as structured notes.</li>
+              <li>Recovery sessions are not blindly pushed as workouts.</li>
+            </ul>
+          </div>
+          <div class="panel">
+            <span class="panel-label">Push outputs</span>
+            <ul>
+              <li><code>compiled_workouts.json</code> - structured workout events</li>
+              <li><code>compiled_notes.json</code> - nutrition or focus notes</li>
+              <li><code>compiled_push_payload.json</code> - exact payload about to be sent</li>
+              <li><code>push_result.json</code> - exact response from Intervals</li>
+            </ul>
+            <p class="caption">
+              This keeps the calendar write-back deterministic and auditable even though the weekly
+              reasoning itself comes from specialist prompts.
+            </p>
+          </div>
+        </div>
+        <footer class="slide-footer">
+          <span>Approved plan -> compiled events -> syntax guard -> Intervals bulk upsert</span>
+          <span class="footer-right">compiler.py + intervals.py</span>
+        </footer>
+      </div>
+    </section>
+
+    <section class="slide" data-title="Commands">
+      <div class="slide-shell">
+        <header class="slide-header">
+          <div>
+            <span class="eyebrow">Operator Commands</span>
+            <h2 class="slide-title">The user-facing surface is intentionally small.</h2>
+            <p class="slide-subtitle">
+              Most of the architecture complexity is behind three main commands and one fixture-only
+              convenience path.
+            </p>
+          </div>
+        </header>
+        <div class="slide-body commands-grid">
+          <div class="code-panel">
+            <span class="code-label">Live production path</span>
+            <pre>python3 -m triathlon_agent.cli prepare-run \
+  --mode live \
+  --athlete-profile data/athlete_profile.json \
+  --weekly-checkin data/weekly_checkin.json
+
+python3 -m triathlon_agent.cli finalize-run runs/&lt;run_id&gt;
+
+python3 -m triathlon_agent.cli approve runs/&lt;run_id&gt; --mode live</pre>
+          </div>
+          <div class="panel">
+            <span class="panel-label">Command semantics</span>
+            <ul>
+              <li><code>prepare-run</code> fetches and normalizes data, then creates the run shell.</li>
+              <li><code>finalize-run</code> validates specialist outputs and renders the report and dashboard.</li>
+              <li><code>approve</code> compiles and pushes after approval.</li>
+              <li><code>plan-week</code> exists for deterministic mock runs and tests, not for live production reasoning.</li>
+            </ul>
+          </div>
+          <div class="code-panel">
+            <span class="code-label">Fixture-backed dry run</span>
+            <pre>python3 -m triathlon_agent.cli plan-week \
+  --mode mock \
+  --athlete-profile fixtures/athlete_profile.json \
+  --weekly-checkin fixtures/weekly_checkin.json</pre>
+          </div>
+          <div class="panel">
+            <span class="panel-label">Important nuance</span>
+            <p>
+              The phrase <code>plan my week</code> intentionally resolves to <code>prepare-run</code>,
+              not to direct drafting. That design forces the system to fetch live data and ask the
+              required post-fetch questions first.
+            </p>
+          </div>
+        </div>
+        <footer class="slide-footer">
+          <span>Small CLI surface, richer internal workflow</span>
+          <span class="footer-right">triathlon_agent/cli.py</span>
+        </footer>
+      </div>
+    </section>
+
+    <section class="slide" data-title="Tradeoffs">
+      <div class="slide-shell">
+        <header class="slide-header">
+          <div>
+            <span class="eyebrow">Tradeoffs</span>
+            <h2 class="slide-title">Strengths and limitations of the design.</h2>
+            <p class="slide-subtitle">
+              The repo optimizes for inspectability and safe execution, not for maximal runtime abstraction.
+            </p>
+          </div>
+        </header>
+        <div class="slide-body two-col">
+          <div class="panel">
+            <span class="panel-label">What works well</span>
+            <ul>
+              <li>Clear separation between reasoning and execution.</li>
+              <li>Inspectable, resumable run artifacts.</li>
+              <li>Mock and live parity for safer development.</li>
+              <li>Human approval before any calendar mutation.</li>
+              <li>Public-friendly repository shape with local-only secrets and athlete data excluded.</li>
+            </ul>
+          </div>
+          <div class="panel">
+            <span class="panel-label">Known limitations</span>
+            <ul>
+              <li>The OpenCode prompt-call loop is documented rather than fully embedded inside the CLI.</li>
+              <li>Swim structure is lighter than bike or run structure.</li>
+              <li>Strength handling is intentionally conservative.</li>
+              <li>The architecture is explicit and file-heavy by design, which means more visible moving parts.</li>
+            </ul>
+          </div>
+        </div>
+        <footer class="slide-footer">
+          <span>Bias: boring execution, explicit state, inspectable decisions</span>
+          <span class="footer-right">DESIGN.md known limitations</span>
+        </footer>
+      </div>
+    </section>
+
+    <section class="slide" data-title="Closing">
+      <div class="slide-shell">
+        <header class="slide-header">
+          <div>
+            <span class="eyebrow">Closing</span>
+            <h2 class="slide-title">The repo is really a controlled interface between LLM reasoning and a real athlete calendar.</h2>
+            <p class="slide-subtitle">
+              The point is not “AI writes a week”. The point is that a coaching workflow can be
+              structured, validated, reviewed, and pushed with the same discipline we expect from
+              technical systems.
+            </p>
+          </div>
+        </header>
+        <div class="slide-body hero-grid">
+          <div class="panel">
+            <span class="panel-label">Takeaway</span>
+            <h3>Prompt engineering alone is not the architecture.</h3>
+            <p>
+              The architecture is the combination of prompts, contracts, deterministic tooling,
+              artifacts, approval, and a write-back layer that can be trusted enough to touch a real
+              external system.
+            </p>
+          </div>
+          <div class="quote-panel">
+            <span class="panel-label">One-line summary</span>
+            <div class="big">Fresh data in. Specialist reasoning through files. Human approval. Deterministic push out.</div>
+            <p class="small">File: <code>triathlon-agent-public-deck.html</code></p>
+          </div>
+        </div>
+        <footer class="slide-footer">
+          <span>Thanks</span>
+          <span class="footer-right">OpenCode + Intervals.icu + Python stdlib</span>
+        </footer>
+      </div>
+    </section>
+  </main>
+
+  <div class="deck-controls" aria-label="Slide navigation">
+    <button class="control-button" id="prev-button" type="button" aria-label="Previous slide">&larr;</button>
+    <div class="slide-count" id="slide-count">1 / 14</div>
+    <button class="control-button" id="next-button" type="button" aria-label="Next slide">&rarr;</button>
+  </div>
+
+  <script>
+    (function () {
+      const slides = Array.from(document.querySelectorAll(".slide"));
+      const countNode = document.getElementById("slide-count");
+      const progressNode = document.getElementById("progress-bar");
+      const prevButton = document.getElementById("prev-button");
+      const nextButton = document.getElementById("next-button");
+      let index = 0;
+      let touchStartX = null;
+
+      function clamp(value) {
+        return Math.max(0, Math.min(slides.length - 1, value));
+      }
+
+      function titleFor(idx) {
+        return slides[idx].dataset.title || "Slide";
+      }
+
+      function setSlide(nextIndex, updateHash = true) {
+        index = clamp(nextIndex);
+        slides.forEach((slide, slideIndex) => {
+          slide.classList.toggle("active", slideIndex === index);
+        });
+        countNode.textContent = `${index + 1} / ${slides.length}`;
+        progressNode.style.width = `${((index + 1) / slides.length) * 100}%`;
+        document.title = `Triathlon Agent - ${titleFor(index)}`;
+        if (updateHash) {
+          history.replaceState(null, "", `#slide-${index + 1}`);
+        }
+      }
+
+      function parseHash() {
+        const match = window.location.hash.match(/slide-(\d+)/);
+        if (!match) {
+          return 0;
+        }
+        return clamp(Number(match[1]) - 1);
+      }
+
+      prevButton.addEventListener("click", function () {
+        setSlide(index - 1);
+      });
+
+      nextButton.addEventListener("click", function () {
+        setSlide(index + 1);
+      });
+
+      document.addEventListener("keydown", function (event) {
+        const tag = document.activeElement && document.activeElement.tagName;
+        if (tag === "INPUT" || tag === "TEXTAREA") {
+          return;
+        }
+        if (["ArrowRight", "ArrowDown", "PageDown", " "].includes(event.key)) {
+          event.preventDefault();
+          setSlide(index + 1);
+        } else if (["ArrowLeft", "ArrowUp", "PageUp"].includes(event.key)) {
+          event.preventDefault();
+          setSlide(index - 1);
+        } else if (event.key === "Home") {
+          event.preventDefault();
+          setSlide(0);
+        } else if (event.key === "End") {
+          event.preventDefault();
+          setSlide(slides.length - 1);
+        }
+      });
+
+      document.addEventListener("touchstart", function (event) {
+        if (event.touches.length === 1) {
+          touchStartX = event.touches[0].clientX;
+        }
+      }, { passive: true });
+
+      document.addEventListener("touchend", function (event) {
+        if (touchStartX === null || event.changedTouches.length !== 1) {
+          touchStartX = null;
+          return;
+        }
+        const deltaX = event.changedTouches[0].clientX - touchStartX;
+        if (Math.abs(deltaX) > 60) {
+          setSlide(index + (deltaX < 0 ? 1 : -1));
+        }
+        touchStartX = null;
+      }, { passive: true });
+
+      window.addEventListener("hashchange", function () {
+        setSlide(parseHash(), false);
+      });
+
+      setSlide(parseHash(), false);
+    }());
+  </script>
+</body>
+</html>

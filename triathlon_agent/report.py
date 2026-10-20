@@ -2,7 +2,170 @@ from __future__ import annotations
 
 from typing import Any
 
+from .race_selection import select_priority_race
 from .utils import minutes_to_hhmm
+
+
+MEMORY_WEEKS_SHOWN = 4
+MEMORY_ITEMS_SHOWN = 5
+
+
+def _render_red_flags(performance: dict[str, Any]) -> list[str]:
+    flags = performance.get("red_flags") or []
+    clearance = performance.get("training_clearance")
+    if not flags and clearance != "no_training_see_doctor":
+        if clearance == "easy_only":
+            return [
+                "## Health Check",
+                "- Above-the-neck symptoms: easy aerobic sessions only, no intensity. "
+                "If symptoms move below the neck or a fever appears, stop training and see a doctor.",
+                "",
+            ]
+        return []
+    lines = ["## STOP: Medical Red Flag"]
+    labels = ", ".join(dict.fromkeys(str(flag.get("label") or flag.get("category")) for flag in flags))
+    lines.append(
+        f"- Stop training and see a doctor before resuming ({labels or 'red-flag symptom reported'}). "
+        "Rest or easy walking only until a doctor has cleared you."
+    )
+    for flag in flags:
+        excerpt = f": \"{flag['excerpt']}\"" if flag.get("excerpt") else ""
+        lines.append(f"- {flag.get('label') or flag.get('category')} ({flag.get('source')}){excerpt}")
+    lines.append("")
+    return lines
+
+
+def _render_open_decisions(final_plan: dict[str, Any]) -> list[str]:
+    decisions = final_plan.get("open_decisions") or []
+    if not decisions:
+        return []
+    lines = ["## Open Decisions (your answer needed)"]
+    for decision in decisions:
+        due = f" - decide by {decision['due_date']}" if decision.get("due_date") else ""
+        lines.append(f"- **{decision.get('question')}**{due}")
+        if decision.get("options"):
+            lines.append(f"  - Options: {', '.join(str(item) for item in decision['options'])}")
+        if decision.get("default_if_no_answer"):
+            lines.append(f"  - If no answer: {decision['default_if_no_answer']}")
+    lines.append("")
+    return lines
+
+
+def _render_long_term_memory(snapshot: dict[str, Any]) -> list[str]:
+    state = snapshot.get("athlete_state") or {}
+    actuals = (state.get("weekly_actuals") or [])[-MEMORY_WEEKS_SHOWN:]
+    races = (state.get("race_results") or [])[-MEMORY_ITEMS_SHOWN:]
+    injuries = (state.get("injury_log") or [])[-MEMORY_ITEMS_SHOWN:]
+    if not (actuals or races or injuries):
+        return []
+    lines = ["## Long-Term Memory"]
+    for week in actuals:
+        extras = []
+        if week.get("niggles"):
+            extras.append(f"niggles: {', '.join(week['niggles'])}")
+        if week.get("illness"):
+            extras.append("illness week")
+        lines.append(
+            f"- Week of {week.get('week_start')}: {week.get('completed_min')}/{week.get('planned_min')} min completed, "
+            f"{len(week.get('key_sessions_done') or [])}/{week.get('key_sessions_planned', 0)} key sessions, "
+            f"adherence {week.get('adherence_pct')}%"
+            + (f" ({'; '.join(extras)})" if extras else "")
+        )
+    for race in races:
+        time_text = f" in {race['time']}" if race.get("time") else ""
+        debrief = f" - debrief: {race['debrief']}" if race.get("debrief") else ""
+        lines.append(
+            f"- Race result: {race.get('name')} ({race.get('date')}, {race.get('distance') or 'distance n/a'}){time_text}{debrief}"
+        )
+    for injury in injuries:
+        lines.append(
+            f"- Injury log: {injury.get('date')} {injury.get('body_part')} "
+            f"(severity {injury.get('severity')}, {injury.get('source')})"
+        )
+    lines.append("")
+    return lines
+
+
+def _render_race_source(snapshot: dict[str, Any]) -> list[str]:
+    """Races always come from the Intervals calendar."""
+    lines: list[str] = []
+    race = select_priority_race(snapshot)
+    if race:
+        lines.append(
+            f"- Intervals calendar priority race: {race.get('name')} on {race.get('date')} "
+            f"({race.get('priority', '?')}-race, {race.get('distance') or 'distance n/a'})"
+        )
+    else:
+        lines.append("- No race on your Intervals calendar: add your races there as RACE events.")
+    for warning in snapshot.get("race_calendar_warnings") or []:
+        lines.append(f"- Race calendar warning: {warning}")
+    return lines
+
+
+def _session_coaching_lines(session: dict[str, Any]) -> list[str]:
+    lines = []
+    if session.get("rpe_target"):
+        lines.append(f"- RPE target: {session['rpe_target']}")
+    if session.get("feel_cue"):
+        lines.append(f"- Feel: {session['feel_cue']}")
+    if session.get("bail_out_rule"):
+        lines.append(f"- Bail out: {session['bail_out_rule']}")
+    terrain_bits = []
+    if session.get("terrain"):
+        terrain_bits.append(str(session["terrain"]).replace("_", " "))
+    if session.get("elevation_gain_m") is not None:
+        terrain_bits.append(f"D+ {int(round(float(session['elevation_gain_m'])))} m")
+    if session.get("elevation_loss_m") is not None:
+        terrain_bits.append(f"D- {int(round(float(session['elevation_loss_m'])))} m")
+    if terrain_bits:
+        lines.append(f"- Terrain: {', '.join(terrain_bits)}")
+    return lines
+
+
+def _render_threshold_testing(threshold_testing: dict[str, Any]) -> list[str]:
+    if not threshold_testing:
+        return []
+    lines = ["## Threshold Testing"]
+    for discipline in ("bike", "run"):
+        status = threshold_testing.get("status", {}).get(discipline) or {}
+        last = status.get("last_test_date") or "none on record"
+        lines.append(
+            f"- {discipline.capitalize()}: {status.get('status', 'unknown')} "
+            f"(protocol {status.get('protocol', 'n/a')}, last test {last}) - {status.get('reason', '')}"
+        )
+        for blocker in status.get("blockers") or []:
+            lines.append(f"  - Blocker: {blocker}")
+    for entry in threshold_testing.get("scheduled", []):
+        lines.append(
+            f"- Scheduled this week: {entry.get('session_name') or entry['discipline']} on {entry.get('date') or 'TBD'} ({entry['protocol']})"
+        )
+    for entry in threshold_testing.get("deferred", []):
+        lines.append(f"- Deferred {entry['discipline']}: {entry['reason']}")
+    if threshold_testing.get("rationale"):
+        lines.append(f"- Rationale: {threshold_testing['rationale']}")
+    for test in threshold_testing.get("completed_tests", []):
+        lines.append(
+            f"- Completed: {test.get('name')} on {test['date']} ({test.get('protocol_label', test['protocol'])}) - {test.get('status')}"
+        )
+        for note in test.get("notes", []):
+            lines.append(f"  - {note}")
+    updates = threshold_testing.get("threshold_updates", [])
+    if updates:
+        lines.append("")
+        lines.append("### Proposed Threshold Updates")
+        lines.append("| Sport | Setting | Current | Proposed | Change | Confidence | Pushed on approval |")
+        lines.append("| --- | --- | --- | --- | --- | --- | --- |")
+        for update in updates:
+            delta = (
+                f"{update['delta_pct']:+.1f}%" if update.get("delta_pct") is not None else "n/a"
+            )
+            pushed = "yes" if update.get("apply") else f"no - {update.get('apply_reason', '')}"
+            lines.append(
+                f"| {update['sport']} | {update.get('label', update['field'])} | {update.get('current_display')} | "
+                f"{update.get('proposed_display')} | {delta} | {update.get('confidence')} | {pushed} |"
+            )
+    lines.append("")
+    return lines
 
 
 def render_weekly_report(
@@ -15,9 +178,35 @@ def render_weekly_report(
     lines: list[str] = []
     lines.append("# Weekly Coaching Report")
     lines.append("")
+    adjustment = final_plan.get("adjustment") or {}
+    if adjustment:
+        lines.append(
+            f"> Mid-week adjustment from {adjustment.get('from_date')}: {adjustment.get('reason')} "
+            f"(replaces the remaining days of {adjustment.get('replaces_run')})."
+        )
+        lines.append("")
+    lines.extend(_render_red_flags(performance))
     lines.append("## Executive Summary")
     lines.append(final_plan["executive_summary"])
     lines.append("")
+    lines.extend(_render_open_decisions(final_plan))
+    audit = final_plan.get("coaching_audit")
+    if audit:
+        lines.append("## Coaching Audit")
+        lines.append(
+            f"- Status: {audit['status']} ({audit['quality_session_count']} quality session(s), "
+            f"allowance {audit.get('max_quality_sessions')}, {audit['planned_intensity_pct']}% of bike/run time above easy"
+            + (
+                f": {audit['planned_moderate_pct']}% moderate, {audit['planned_high_pct']}% high)"
+                if audit.get("planned_moderate_pct") is not None
+                else ")"
+            )
+        )
+        for finding in audit["findings"]:
+            lines.append(f"- WARNING [{finding['code']}]: {finding['message']}")
+        if not audit["findings"]:
+            lines.append("- The plan follows the intensity and progression doctrine.")
+        lines.append("")
     athlete_brief = final_plan.get("athlete_brief")
     if athlete_brief:
         lines.append("## Athlete Brief")
@@ -40,19 +229,26 @@ def render_weekly_report(
         lines.append("")
     weekly_time_budget = final_plan.get("weekly_time_budget")
     if weekly_time_budget:
-        lines.append("## Time Budget")
+        lines.append("## Weekly Volume")
         lines.append(
-            f"- Required time this week: {minutes_to_hhmm(weekly_time_budget['target_min'])}"
+            f"- Planned this week: {minutes_to_hhmm(int(weekly_time_budget['planned_min'] or 0))} (head coach decision)"
         )
-        lines.append(
-            f"- Effective range: {minutes_to_hhmm(weekly_time_budget['minimum_effective_min'])} to {minutes_to_hhmm(weekly_time_budget['maximum_effective_min'])}"
-        )
-        lines.append(f"- Mode: {weekly_time_budget['mode']}")
+        if weekly_time_budget.get("reference_min"):
+            lines.append(
+                f"- Your typical week (reference, not a cap): {minutes_to_hhmm(int(weekly_time_budget['reference_min']))}"
+            )
+        if weekly_time_budget.get("hard_cap_min"):
+            lines.append(
+                f"- Hours you have this week (cap): {minutes_to_hhmm(int(weekly_time_budget['hard_cap_min']))}"
+            )
+        for cut in weekly_time_budget.get("cuts") or []:
+            lines.append(f"- Cut to fit: {cut}")
         lines.append(f"- Why: {weekly_time_budget['rationale']}")
         lines.append("")
     lines.append("## What Last Week Tells Us")
     lines.append(final_plan["what_last_week_tells_us"])
     lines.append("")
+    lines.extend(_render_long_term_memory(snapshot))
     adherence = snapshot.get("prior_plan_adherence", {})
     if adherence.get("status") == "available":
         lines.append("## Recent Adherence Context")
@@ -98,6 +294,7 @@ def render_weekly_report(
         f"- Phase focus: {final_plan['macro_cycle_decision'].get('phase_focus', 'n/a')}"
     )
     lines.append("")
+    lines.extend(_render_threshold_testing(final_plan.get("threshold_testing") or {}))
     lines.append("## Phase Alignment Check")
     phase_alignment = final_plan["phase_alignment_check"]
     lines.append(f"- Status: {phase_alignment['alignment_status']}")
@@ -132,6 +329,12 @@ def render_weekly_report(
     if performance.get("readiness_confidence"):
         lines.append(f"- Confidence: {performance['readiness_confidence']}")
     lines.append(f"- Main risk: {performance['main_risk']}")
+    health_events = performance.get("health_events") or {}
+    if health_events.get("status", "none") != "none":
+        lines.append(
+            f"- Health notes (Intervals): {health_events['status']}, "
+            f"{health_events.get('days_since_end')} day(s) since last sick/injured note"
+        )
     lines.append(
         f"- Objective findings: {'; '.join(performance['objective_findings'])}"
     )
@@ -154,6 +357,7 @@ def render_weekly_report(
         )
     lines.append("")
     lines.append("## Strategic Race Lens")
+    lines.extend(_render_race_source(snapshot))
     lines.append(f"- Priority race: {race['priority_race_lens']}")
     lines.append(f"- Needs: {', '.join(race['race_specific_needs'])}")
     lines.append(f"- Mistake to avoid: {race['mistake_to_avoid']}")
@@ -186,7 +390,7 @@ def render_weekly_report(
     lines.append("## Validator Adjustments Incorporated")
     if final_plan["validator_adjustments_incorporated"]:
         for edit in final_plan["validator_adjustments_incorporated"]:
-            lines.append(f"- {edit['summary']}")
+            lines.append(f"- {edit.get('summary') or edit.get('action') or edit}")
     else:
         lines.append("- No validator edits were required.")
     lines.append("")
@@ -196,6 +400,12 @@ def render_weekly_report(
             f"### {session['day']} {session['date']} - {session['session_name']}"
         )
         lines.append(f"- Discipline: {session['discipline']}")
+        if session.get("race_day"):
+            lines.append("- Race day: yes")
+        if session.get("priority") == "optional":
+            lines.append("- Optional: skip freely if tired or busy")
+        if session.get("push_to_intervals") is False:
+            lines.append("- Not pushed to Intervals.icu (already on the calendar or logged as played)")
         lines.append(f"- Objective: {session['objective']}")
         lines.append(f"- Duration: {minutes_to_hhmm(session['duration_min'])}")
         lines.append(f"- Intensity: {session['intensity_guidance']}")
@@ -208,15 +418,20 @@ def render_weekly_report(
             lines.append(f"- Expected IF: {session['expected_if']}")
         if session.get("estimated_tss") is not None:
             lines.append(f"- Estimated TSS: {session['estimated_tss']}")
+        if session.get("threshold_test"):
+            lines.append(
+                f"- Threshold test: {session['threshold_test'].get('protocol_label')} - {session['threshold_test'].get('formula_note', '')}"
+            )
+        lines.extend(_session_coaching_lines(session))
         lines.append(f"- Success: {session['success_criteria']}")
         lines.append(f"- Cut first: {session['cut_first']}")
         lines.append("- Structure:")
         for section in session["blocks"]:
             repeat = f" {section['repeat']}x" if section.get("repeat") else ""
-            lines.append(f"  - {section['section']}{repeat}")
-            for step in section["steps"]:
+            lines.append(f"  - {section.get('section', '')}{repeat}")
+            for step in section.get("steps") or []:
                 cadence = f" {step['cadence']}" if step.get("cadence") else ""
-                lines.append(f"    - {step['duration']} {step['target']}{cadence}")
+                lines.append(f"    - {step.get('duration', '')} {step.get('target', '')}{cadence}")
         lines.append(f"- Execution notes: {'; '.join(session['execution_notes'])}")
         nutrition = session.get("nutrition", {})
         if nutrition:
@@ -280,6 +495,9 @@ def render_weekly_report(
     lines.append("")
     lines.append("## Approval Checkpoint")
     lines.append(final_plan["approval_checkpoint"])
+    for decision in final_plan.get("open_decisions") or []:
+        due = f" (by {decision['due_date']})" if decision.get("due_date") else ""
+        lines.append(f"- Open decision: {decision.get('question')}{due}")
     lines.append("")
     return "\n".join(lines).strip() + "\n"
 

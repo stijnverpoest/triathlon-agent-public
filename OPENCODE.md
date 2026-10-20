@@ -15,7 +15,7 @@ The OpenCode main agent then does the following:
 1. runs `prepare-run`
 2. verifies the snapshot is fresh enough for planning
 3. summarizes last week from Intervals activities and wellness
-4. asks only for targeted subjective feedback and next-week constraints
+4. asks only for targeted subjective feedback and next-week constraints, then records the answers with `record-checkin` (this re-normalizes the snapshot)
 5. reads the normalized snapshot and prompt files
 6. calls every specialist prompt in order
 7. writes each JSON artifact into the run folder
@@ -23,7 +23,7 @@ The OpenCode main agent then does the following:
 9. runs `finalize-run`
 10. shows you `weekly_report.md`
 11. waits for approval
-12. after approval, runs `approve`, which pushes workouts and meaningful nutrition notes
+12. after approval, runs `approve`, which pushes workouts and meaningful nutrition notes, plus any approved threshold updates to Intervals sport settings
 
 The exact behavior contract is documented in `PLAN_MY_WEEK_SPEC.md`.
 
@@ -38,6 +38,18 @@ python3 -m triathlon_agent.cli prepare-run \
   --mode live \
   --athlete-profile data/athlete_profile.json \
   --weekly-checkin data/weekly_checkin.json
+```
+
+Record the athlete's check-in answers (required before `finalize-run` in live mode):
+
+```bash
+python3 -m triathlon_agent.cli record-checkin runs/<run_id> answers.json
+```
+
+Re-plan the remaining days of an approved week:
+
+```bash
+python3 -m triathlon_agent.cli adjust-week runs/<run_id> --from YYYY-MM-DD --reason "..." --mode live
 ```
 
 Validate agent artifacts and render the report:
@@ -57,6 +69,8 @@ Dry-run the push against live data:
 ```bash
 python3 -m triathlon_agent.cli approve runs/<run_id> --mode live --dry-run
 ```
+
+`approve` refuses when `final_plan.json` changed since approval, and skips events the athlete edited in Intervals since the last push (`--overwrite-edited` forces them).
 
 ## Required artifact files
 

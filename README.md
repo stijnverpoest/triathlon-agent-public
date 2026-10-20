@@ -113,9 +113,19 @@ Relevant environment variables:
 Important `data/weekly_checkin.json` fields:
 
 - `open_water_mode`: `false` keeps pool-season swim constraints active; `true` lets the planner relax those seasonal swim constraints
-- `available_hours_override_min`: optional weekly cap in minutes
+- `available_hours_override_min` / `available_hours_hard_cap_min`: hours you have this week, in minutes; these bind (`finalize-run` rejects a plan above them). The profile's typical hours stay a soft reference
 - `double_session_capacity_by_day`: optional per-day double-session guidance for the coming week
-- `time_caps_by_day`: optional per-day time caps in minutes for the coming week
+- `time_caps_by_day`: optional per-day time caps in minutes for the coming week; these do bind
+- `red_flags`, `illness_symptoms`: chest pain, palpitations, disproportionate breathlessness, dizziness or fever stop training and send you to a doctor; above-the-neck symptoms alone allow easy sessions
+- `pain_scores`: 0-10 per body part (≥ 3 is a niggle, ≥ 5 means no impact on that area)
+- `sleep_quality`, `work_stress`, `missed_session_reasons`, `upcoming_events`, `race_debrief`
+- `subjective_readiness`, `current_motivation`: leave `null` when unknown; a blank answer is never read as "fine"
+
+Answer the post-fetch check-in with `record-checkin` (see below); its answers are merged into the run and the snapshot is re-normalized before planning.
+
+## Races come from your Intervals calendar
+
+Races, priorities (A/B/C) and dates come only from Intervals.icu RACE events. The optional local race calendar can only add notes to a race that is already on the Intervals calendar; it never adds a race or changes its date, name or priority. Entries it cannot match are listed in `race_calendar_warnings`. `data/athlete_state.json` keeps history only, never the priority race.
 
 Wellness baselines for HRV, resting HR, and sleep are derived from Intervals.icu wellness history whenever enough data exists. Manual baseline fields in `data/athlete_profile.json` are optional fallback overrides only.
 
@@ -131,6 +141,57 @@ The coaching philosophy is explicitly organized around:
 - `Joe Friel` for periodization and race-phase structure
 - `Jack Daniels` for run taxonomy
 - `Andrew Coggan` for bike taxonomy
+- `prompts/training_intensity_doctrine.md` for intensity and progression:
+  - pyramidal distribution by default
+  - quality-session count from the readiness allowance and HRV gate
+  - underload detection
+  - time-in-zone progression ladders, including VO2max / I work and ultra-trail uphill threshold
+
+There is no session library: the head coach designs every session. Deterministic support lives in:
+
+- `triathlon_agent/training_load.py`, which feeds `normalized_snapshot.training_load`:
+  - CTL ramp and TSB (thresholds scale with CTL)
+  - 28-day three-zone distribution (power zones for rides when available)
+  - quality frequency
+  - HRV gate (`stale` when HRV is more than 2 days old)
+  - eFTP trend
+  - underload markers, with a physiological veto (`explained_physiological`)
+  - `return_from_break`: a 50 → 60 → 75 → 90% re-entry ramp after 7+ days off
+  - run-specific ACWR and `week_caps` for run km, minutes, descent and the long run
+  - `daily_signals`: a 1–3 day resting-HR / HRV early warning
+  - `overreaching` (functional vs non-functional) and `efficiency_trend`
+- `normalized_snapshot.activity_note_flags`: pain, illness and red-flag words from activity descriptions and comments (EN + NL)
+- `triathlon_agent/progression.py`, which feeds `normalized_snapshot.progression`: the last completed dose per ladder family and the next rung.
+- `triathlon_agent/plan_audit.py`, run by `finalize-run`: a deterministic check of `final_plan.json` against the doctrine. It writes `coaching_audit` into the final plan and a `## Coaching Audit` section at the top of the report. It warns but never blocks approval. It flags:
+  - under-dosed green weeks
+  - underload not addressed
+  - quality above the allowance
+  - missing `progression` objects
+  - no rung progression on the last completed dose
+  - quality on consecutive days
+  - almost-all-easy weeks, and weeks above the 30% intensity ceiling
+  - a missing scheduled threshold test
+  - quality inside a recovery week
+  - running above `run_load.week_caps` (run km / minutes ~+10%, descent ~+15%), long runs above the cap, and weeks that ignore `return_from_break`
+  - more than two progressing elements, or more than one run-impact element (the progression budget)
+  - heavy leg strength before a key session, and hard work across the week boundary
+  - quality within 72 h before a B-race, hard work after a race, and over-deep tapers
+  - running or descending with a reported pain score of 3/10 or more
+
+All thresholds live in `triathlon_agent/coaching_limits.py`, shared by the audit, the validator and the stub head coach.
+
+## Threshold testing
+
+The agent schedules threshold tests itself so FTP, threshold pace, and LTHR stay correct (`prompts/threshold_testing_doctrine.md`, `triathlon_agent/threshold_testing.py`):
+
+- a recovery week ends with a test (Friel "rest & test") only when a discipline relevant to the A-race is due: a trail block tests the run, and the bike only when the FTP is stale or overdue and bike targets are prescribed; no tests in a return-from-break week
+- when the set FTP is more than 10% above a confident eFTP, the interim update is proposed with `apply: true` (still pushed only after you approve the week); when eFTP is more than 5% above the set FTP, targets are scaled up
+- at least 42 days between tests of the same discipline (28 with an early trigger such as FTP vs eFTP drift above 5%); 84+ days is overdue
+- no tests within 21 days of an A-race or 7 days of a B-race, with red readiness, shortly after illness, or (run) with a reported niggle
+- a recent flat road race of 10k or longer counts as the run test
+- bike protocol: `coggan_20` (20' x 0.95) by default, `friel_30` (30' TT, final-20' HR = LTHR) as option B; run protocol: Friel 30' TT
+- set the default in `athlete_profile.json` under `threshold_testing.bike_protocol`, or override one week with `"bike_test_protocol": "friel_30"` in the weekly check-in
+- after a test, `prepare-run` reads its laps from Intervals and proposes new values in the report; `approve` pushes the confident ones to Intervals sport settings and records the test in `data/athlete_state.json`
 
 ## OpenCode-native workflow
 
@@ -167,6 +228,13 @@ The freeform phrase `plan my week` should prepare the run and stop before drafti
 - verify the fetched Intervals snapshot is fresh enough for planning
 - summarize the prior week from the fetched activities and wellness
 - ask only for subjective feedback and coming-week constraints that Intervals cannot know
+- write the answers to a JSON file and record them, which re-normalizes the snapshot without a new fetch:
+
+```bash
+python3 -m triathlon_agent.cli record-checkin runs/<run_id> answers.json
+```
+
+In live mode `finalize-run` refuses to run before the check-in is recorded (override with `--allow-missing-checkin`).
 
 5. The main agent calls each specialist and writes:
 
@@ -217,6 +285,16 @@ python3 -m triathlon_agent.cli finalize-run runs/<run_id>
 ```bash
 python3 -m triathlon_agent.cli approve runs/<run_id> --mode live
 ```
+
+Approval is bound to the exact `final_plan.json` (sha256): if the plan changes after approval, `approve` refuses to push and re-finalizing resets the approval to pending. Before pushing, `approve` compares the live calendar with what it pushed last time; events you edited or moved in Intervals are skipped and listed in `edited_events.json` (force with `--overwrite-edited`). Nothing is ever deleted.
+
+When the week goes off the rails mid-week (illness, a bad night, travel), re-plan only the remaining days in a new linked run:
+
+```bash
+python3 -m triathlon_agent.cli adjust-week runs/<run_id> --from YYYY-MM-DD --reason "sick since Tuesday" --mode live
+```
+
+It fetches fresh data, writes `adjustment_context.json` (done so far vs planned), seeds the remaining days as the draft, and needs its own `finalize-run` and approval. `approve` then pushes only the days from `--from` on.
 
 If you want to inspect the exact helper flow, see `prompts/master_prompt.md` and `runs/<run_id>/run_context.json`.
 

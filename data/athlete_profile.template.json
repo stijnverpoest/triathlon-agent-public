@@ -52,5 +52,10 @@
   "typical_sleep_hours": 7.5,
   "hrv_baseline": null,
   "resting_hr_baseline": null,
+  "threshold_testing": {
+    "bike_protocol": "coggan_20",
+    "bike_protocol_alternative": "friel_30",
+    "run_protocol": "friel_30"
+  },
   "coaching_tone_preference": "Direct and practical"
 }
